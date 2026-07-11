@@ -678,7 +678,8 @@ export default function App() {
                         <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><ChevronRight className="w-5 h-5 text-gray-600" /></button>
                     </div>
                   </div>
-                  <button onClick={() => { setCreatePM_prefillEq(null); setCreatePM_finalEq(""); setCurrentView('pm-create'); }} className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors shadow-sm text-sm font-medium">
+                  {/* ปรับเป็นสีฟ้าและใช้คำมาตรฐาน */}
+                  <button onClick={() => { setCreatePM_prefillEq(null); setCreatePM_finalEq(""); setCurrentView('pm-create'); }} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium">
                     <Plus className="w-4 h-4" /> เพิ่มงาน PM
                   </button>
                 </div>
@@ -703,6 +704,7 @@ export default function App() {
                             <p className="text-sm text-gray-500">ประจำวันที่ {new Date(selectedPMDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                         </div>
                     </div>
+                    {/* ใช้สีฟ้าและข้อความมาตรฐาน (จุดนี้ถูกต้องอยู่แล้ว) */}
                     <button onClick={() => { setCreatePM_prefillEq(null); setCurrentView('pm-create'); }} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium mb-0.5">
                       <Plus className="w-4 h-4" /> เพิ่มงาน PM
                     </button>
@@ -891,7 +893,7 @@ export default function App() {
                                         history.sort((a, b) => new Date(b.date) - new Date(a.date));
                                         const lastPMDateRaw = count > 0 ? history[0].date : null;
                                         const lastPMDateDisplay = count > 0 ? new Date(lastPMDateRaw).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' }) : '-';
-                                        
+                                        // Overdue Check
                                         const overdue = isOverdue(lastPMDateRaw, eqInterval);
 
                                         return (
@@ -919,13 +921,14 @@ export default function App() {
                                               </div>
                                             </div>
                                             
+                                            {/* CTA Button in Equipment Card: ปรับเป็นสีและคำมาตรฐานทั้งหมด */}
                                             <div className="px-4 pb-4">
                                                <button onClick={(e) => {
                                                   e.stopPropagation();
                                                   setCreatePM_prefillEq(eqName);
                                                   setCurrentView('pm-create');
-                                               }} className={`w-full py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${overdue ? 'bg-red-600 hover:bg-red-700 text-white shadow-sm' : 'bg-gray-200 text-gray-700 hover:bg-blue-600 hover:text-white'}`}>
-                                                  <Calendar className="w-4 h-4" /> สร้างงาน PM
+                                               }} className="w-full py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition-colors hover:bg-blue-600 hover:text-white shadow-sm">
+                                                  <Plus className="w-4 h-4" /> เพิ่มงาน PM
                                                </button>
                                             </div>
                                           </div>
@@ -956,7 +959,8 @@ export default function App() {
                             <p className="text-gray-500 mt-1">ประวัติการบำรุงรักษาเชิงป้องกันทั้งหมด</p>
                           </div>
                         </div>
-                        <button onClick={() => { setCreatePM_prefillEq(selectedEquipment); setCurrentView('pm-create'); }} className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors shadow-sm text-sm font-medium">
+                        {/* ปรับปุ่มเพิ่มงาน PM ในหน้ารายละเอียดอุปกรณ์เป็นสีฟ้าและมาตรฐานเดียวกัน */}
+                        <button onClick={() => { setCreatePM_prefillEq(selectedEquipment); setCurrentView('pm-create'); }} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium">
                            <Plus className="w-4 h-4" /> เพิ่มงาน PM
                         </button>
                     </div>
