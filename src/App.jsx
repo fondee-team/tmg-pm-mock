@@ -6,7 +6,7 @@ import {
   Image as ImageIcon, Info, CheckSquare, Edit, X, ChevronLeft, Wrench, Layers,
   Check, RotateCcw, Activity, Sparkles, Droplet, Zap, Users,
   CheckCircle, AlertCircle, ShieldAlert, ClipboardCheck, History,
-  Award, CheckCheck, Undo2
+  Award, CheckCheck, Undo2, FileText
 } from 'lucide-react';
 
 // ==========================================
@@ -1731,8 +1731,8 @@ export default function App() {
                   </span>
                 </div>
 
-                {/* การ์ดสถิติของช่างแต่ละคน */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* การ์ดสถิติของช่างแต่ละคน (แสดงแถวละ 1 คน เต็มความกว้าง) */}
+                <div className="grid grid-cols-1 gap-5">
                   {techniciansList
                     .filter(tech => selectedStatsTechs.length === 0 || selectedStatsTechs.includes(tech.name))
                     .map(tech => {
@@ -1755,111 +1755,140 @@ export default function App() {
                       const repairCount = evaluatedTasks.filter(t => t.technicianHealthAssessment === 'งานซ่อมแซม').length;
 
                       return (
-                        <div key={tech.name} className="bg-gray-50/70 border border-gray-200 rounded-2xl p-5 flex flex-col justify-between hover:border-blue-300 transition-all shadow-2xs">
-                          <div className="space-y-4">
-                            {/* ส่วนหัวข้อมูลช่าง */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-11 h-11 rounded-2xl bg-gradient-to-tr ${tech.color} text-white font-extrabold text-sm flex items-center justify-center shadow-xs`}>
-                                  {tech.avatar}
+                        <div 
+                          key={tech.name} 
+                          className="bg-gray-50/70 border border-gray-200 rounded-3xl p-5 hover:border-blue-300 transition-all shadow-2xs"
+                        >
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                            {/* ฝั่งซ้าย: ข้อมูลช่าง, ความคืบหน้า, ตัวนับ 5 สถานะ, และผลประเมินสุขภาพ (5 cols) */}
+                            <div className="lg:col-span-5 space-y-4">
+                              {/* ส่วนหัวข้อมูลช่าง */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${tech.color} text-white font-extrabold text-base flex items-center justify-center shadow-xs`}>
+                                    {tech.avatar}
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-gray-900 text-sm">{tech.name}</h4>
+                                    <p className="text-xs text-gray-500">{tech.role}</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <h4 className="font-bold text-gray-900 text-sm">{tech.name}</h4>
-                                  <p className="text-xs text-gray-500">{tech.role}</p>
-                                </div>
-                              </div>
-                              <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full">
-                                {assignedTasks.length} งาน
-                              </span>
-                            </div>
-
-                            {/* แถบ Progress ความคืบหน้า */}
-                            <div>
-                              <div className="flex justify-between items-center text-xs mb-1.5 font-medium">
-                                <span className="text-gray-500">ความสำเร็จของงาน:</span>
-                                <span className="font-bold text-gray-900">{doneCount}/{assignedTasks.length} ({completionRate}%)</span>
-                              </div>
-                              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden flex">
-                                <div style={{ width: `${assignedTasks.length ? (doneCount / assignedTasks.length) * 100 : 0}%` }} className="bg-emerald-500 h-full" title="อนุมัติแล้ว" />
-                                <div style={{ width: `${assignedTasks.length ? (reviewCount / assignedTasks.length) * 100 : 0}%` }} className="bg-amber-500 h-full" title="รออนุมัติ" />
-                                <div style={{ width: `${assignedTasks.length ? (inProgCount / assignedTasks.length) * 100 : 0}%` }} className="bg-blue-500 h-full" title="กำลังดำเนินการ" />
-                                <div style={{ width: `${assignedTasks.length ? (reworkCount / assignedTasks.length) * 100 : 0}%` }} className="bg-rose-500 h-full" title="ส่งกลับแก้ไข" />
-                                <div style={{ width: `${assignedTasks.length ? (pendingCount / assignedTasks.length) * 100 : 0}%` }} className="bg-gray-300 h-full" title="รอดำเนินการ" />
-                              </div>
-                            </div>
-
-                            {/* Badge นับสถานะงาน */}
-                            <div className="grid grid-cols-3 gap-1.5 text-center text-[11px]">
-                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
-                                <div className="text-gray-400">รอดำเนินการ</div>
-                                <div className="font-bold text-gray-700">{pendingCount}</div>
-                              </div>
-                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
-                                <div className="text-blue-500">กำลังทำ</div>
-                                <div className="font-bold text-blue-700">{inProgCount}</div>
-                              </div>
-                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
-                                <div className="text-amber-500">รออนุมัติ</div>
-                                <div className="font-bold text-amber-700">{reviewCount}</div>
-                              </div>
-                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
-                                <div className="text-rose-500">ส่งกลับ</div>
-                                <div className="font-bold text-rose-700">{reworkCount}</div>
-                              </div>
-                              <div className="p-1.5 rounded-xl bg-white border border-gray-200 col-span-2">
-                                <div className="text-emerald-500">อนุมัติปิดงาน</div>
-                                <div className="font-bold text-emerald-700">{doneCount}</div>
-                              </div>
-                            </div>
-
-                            {/* ผลประเมินสุขภาพอุปกรณ์ที่ช่างตรวจแล้ว */}
-                            <div className="bg-white p-3 rounded-xl border border-gray-200 space-y-1.5">
-                              <span className="text-[11px] font-bold text-gray-600 block">ผลประเมินสุขภาพเครื่องจักรที่ส่งตรวจ:</span>
-                              {evaluatedTasks.length > 0 ? (
-                                <div className="flex items-center gap-1.5 text-[11px]">
-                                  <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                                    เรียบร้อย {healthyCount}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 font-bold border border-amber-200">
-                                    ติดตาม {watchCount}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-700 font-bold border border-rose-200">
-                                    ซ่อมแซม {repairCount}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-[11px] text-gray-400 italic">
-                                  ยังไม่มีงานที่ส่งผลประเมินสุขภาพในตัวกรองนี้
+                                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">
+                                  {assignedTasks.length} งาน
                                 </span>
-                              )}
+                              </div>
+
+                              {/* แถบ Progress ความคืบหน้า */}
+                              <div className="bg-white p-3.5 rounded-2xl border border-gray-200 space-y-2">
+                                <div className="flex justify-between items-center text-xs font-medium">
+                                  <span className="text-gray-500">ความสำเร็จของงาน:</span>
+                                  <span className="font-bold text-gray-900">{doneCount}/{assignedTasks.length} ({completionRate}%)</span>
+                                </div>
+                                <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden flex">
+                                  <div style={{ width: `${assignedTasks.length ? (doneCount / assignedTasks.length) * 100 : 0}%` }} className="bg-emerald-500 h-full" title="อนุมัติแล้ว" />
+                                  <div style={{ width: `${assignedTasks.length ? (reviewCount / assignedTasks.length) * 100 : 0}%` }} className="bg-amber-500 h-full" title="รออนุมัติ" />
+                                  <div style={{ width: `${assignedTasks.length ? (inProgCount / assignedTasks.length) * 100 : 0}%` }} className="bg-blue-500 h-full" title="กำลังดำเนินการ" />
+                                  <div style={{ width: `${assignedTasks.length ? (reworkCount / assignedTasks.length) * 100 : 0}%` }} className="bg-rose-500 h-full" title="ส่งกลับแก้ไข" />
+                                  <div style={{ width: `${assignedTasks.length ? (pendingCount / assignedTasks.length) * 100 : 0}%` }} className="bg-gray-300 h-full" title="รอดำเนินการ" />
+                                </div>
+                              </div>
+
+                              {/* Badge นับสถานะงานครบทั้ง 5 สถานะเรียงแนวนอน */}
+                              <div className="grid grid-cols-5 gap-1.5 text-center text-[11px]">
+                                <div className="p-2 rounded-xl bg-white border border-gray-200">
+                                  <div className="text-gray-400 text-[10px]">รอดำเนินการ</div>
+                                  <div className="font-bold text-gray-700 text-xs mt-0.5">{pendingCount}</div>
+                                </div>
+                                <div className="p-2 rounded-xl bg-white border border-gray-200">
+                                  <div className="text-blue-500 text-[10px]">กำลังทำ</div>
+                                  <div className="font-bold text-blue-700 text-xs mt-0.5">{inProgCount}</div>
+                                </div>
+                                <div className="p-2 rounded-xl bg-white border border-gray-200">
+                                  <div className="text-amber-500 text-[10px]">รออนุมัติ</div>
+                                  <div className="font-bold text-amber-700 text-xs mt-0.5">{reviewCount}</div>
+                                </div>
+                                <div className="p-2 rounded-xl bg-white border border-gray-200">
+                                  <div className="text-rose-500 text-[10px]">ส่งกลับ</div>
+                                  <div className="font-bold text-rose-700 text-xs mt-0.5">{reworkCount}</div>
+                                </div>
+                                <div className="p-2 rounded-xl bg-white border border-gray-200">
+                                  <div className="text-emerald-500 text-[10px]">ปิดงานแล้ว</div>
+                                  <div className="font-bold text-emerald-700 text-xs mt-0.5">{doneCount}</div>
+                                </div>
+                              </div>
+
+                              {/* ผลประเมินสุขภาพอุปกรณ์ที่ช่างตรวจแล้ว */}
+                              <div className="bg-white p-3.5 rounded-2xl border border-gray-200 space-y-1.5">
+                                <span className="text-[11px] font-bold text-gray-600 block">ผลประเมินสุขภาพเครื่องจักรที่ส่งตรวจ:</span>
+                                {evaluatedTasks.length > 0 ? (
+                                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                                      เรียบร้อย {healthyCount}
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                                      ติดตาม {watchCount}
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold border border-rose-200">
+                                      ซ่อมแซม {repairCount}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-400 italic">
+                                    ยังไม่มีงานที่ส่งผลประเมินสุขภาพในตัวกรองนี้
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
-                            {/* รายการใบงานที่มอบหมาย */}
-                            <div className="space-y-2">
-                              <span className="text-[11px] font-bold text-gray-600 block">ใบงานที่รับผิดชอบ ({assignedTasks.length} รายการ):</span>
+                            {/* ฝั่งขวา: รายการใบงานที่มอบหมาย (7 cols พร้อม divider บนจอใหญ่) */}
+                            <div className="lg:col-span-7 space-y-2.5 lg:border-l lg:border-gray-200 lg:pl-6">
+                              <div className="flex items-center justify-between pb-1">
+                                <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                                  <FileText className="w-4 h-4 text-blue-600" />
+                                  ใบงานที่รับผิดชอบ ({assignedTasks.length} รายการ)
+                                </span>
+                                {assignedTasks.length > 0 && (
+                                  <span className="text-[11px] text-gray-400 hidden sm:inline-block">คลิกที่ใบงานเพื่อดูรายละเอียด</span>
+                                )}
+                              </div>
+
                               {assignedTasks.length === 0 ? (
-                                <div className="text-xs text-gray-400 py-3 text-center bg-white rounded-xl border border-dashed border-gray-200">
+                                <div className="text-xs text-gray-400 py-10 text-center bg-white rounded-2xl border border-dashed border-gray-200">
                                   ไม่มีงานที่มอบหมายตามตัวกรองนี้
                                 </div>
                               ) : (
-                                <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                                   {assignedTasks.map(t => (
                                     <div 
                                       key={t.id} 
                                       onClick={() => { setSelectedPMTask(t); setCurrentView('pm-detail'); }}
-                                      className="p-2.5 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-2xs transition-all cursor-pointer flex items-center justify-between gap-2"
+                                      className="p-3.5 rounded-2xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-2xs transition-all cursor-pointer flex items-center justify-between gap-3"
                                     >
-                                      <div className="truncate">
-                                        <div className="flex items-center gap-1.5 text-xs">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
                                           <span className="font-bold text-blue-600">{t.id}</span>
-                                          <span className="text-gray-400">&bull;</span>
-                                          <span className="font-semibold text-gray-800 truncate">{t.equipment}</span>
-                                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1 rounded">{t.cycle}</span>
+                                          <span className="text-gray-300">&bull;</span>
+                                          <span className="font-bold text-gray-900">{t.equipment}</span>
+                                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-semibold">{t.cycle}</span>
+                                          {t.serviceTypeIds && t.serviceTypeIds.length > 0 && (
+                                            <div className="hidden sm:flex flex-wrap gap-1">
+                                              {t.serviceTypeIds.map(stId => (
+                                                <span key={stId} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                                                  {getServiceTypeInfo(stId).shortName}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
-                                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{t.title}</p>
+                                        <p className="text-xs text-gray-600 truncate mt-1">{t.title}</p>
                                       </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeStyle(t.status)}`}>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment && (
+                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border hidden md:inline-block ${getHealthBadgeStyle(t.technicianHealthAssessment)}`}>
+                                            {t.technicianHealthAssessment}
+                                          </span>
+                                        )}
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadgeStyle(t.status)}`}>
                                           {t.status}
                                         </span>
                                       </div>
