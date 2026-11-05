@@ -422,13 +422,11 @@ export default function App() {
   const [managerActionType, setManagerActionType] = useState('approve'); // 'approve' | 'reject'
   const [managerInputNote, setManagerInputNote] = useState('');
   
-  // ช่างและผู้จัดการบันทึกผลการตรวจ & ปรับสถานะ (UI ตรงตาม Mockup จริง)
+  // ช่างและผู้จัดการบันทึกผลการตรวจ & ปรับสถานะ
   const [showTechSubmitModal, setShowTechSubmitModal] = useState(false);
   const [techFormTargetStatus, setTechFormTargetStatus] = useState('กำลังดำเนินการ'); // 'รอดำเนินการ' | 'กำลังดำเนินการ' | 'รออนุมัติ'
   const [techFormHealth, setTechFormHealth] = useState('เรียบร้อย'); // 'เรียบร้อย' | 'งานติดตาม' | 'งานซ่อมแซม'
   const [techFormNote, setTechFormNote] = useState('');
-  const [techFormCoWorkers, setTechFormCoWorkers] = useState([]);
-  const [techFormWorkTypes, setTechFormWorkTypes] = useState(['ซ่อมบำรุง']);
   const [techFormPhotos, setTechFormPhotos] = useState([]);
   const techPhotoInputRef = useRef(null);
 
@@ -441,8 +439,6 @@ export default function App() {
     setTechFormTargetStatus(defaultTarget);
     setTechFormHealth(task.technicianHealthAssessment || 'เรียบร้อย');
     setTechFormNote(task.technicianNote || '');
-    setTechFormCoWorkers(task.coWorkers || (task.assignees ? task.assignees.slice(1) : []));
-    setTechFormWorkTypes(task.workTypes || ['ซ่อมบำรุง']);
     setTechFormPhotos(task.workPhotos ? [...task.workPhotos] : []);
     setShowTechSubmitModal(true);
   };
@@ -531,8 +527,6 @@ export default function App() {
       status: techFormTargetStatus,
       technicianHealthAssessment: updatedHealth,
       technicianNote: techFormNote || selectedPMTask.technicianNote,
-      coWorkers: techFormCoWorkers,
-      workTypes: techFormWorkTypes,
       workPhotos: techFormPhotos,
       timeline: [
         {
@@ -2952,7 +2946,7 @@ export default function App() {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: ปรับสถานะการทำงาน & แนบรูปถ่าย (ตรงตาม Mockup ภาพจริง - ข้อ 10.1, 10.4, 10.5) */}
+      {/* MODAL 2: ปรับสถานะการทำงาน & สุขภาพอุปกรณ์ (แบบเดิม + แนบรูปถ่ายหน้างานใน Modal) */}
       {/* ======================================================== */}
       {showTechSubmitModal && selectedPMTask && (() => {
         const currentChecklist = getTaskChecklist(selectedPMTask);
@@ -2962,137 +2956,50 @@ export default function App() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
-            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-200 animate-in slide-in-from-bottom duration-200">
-              {/* Mobile Drag Handle */}
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-200 animate-in slide-in-from-bottom duration-200">
+              {/* Mobile Drag Handle (สำหรับช่างหน้างานใช้งานบนมือถือ) */}
               <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto my-2.5 sm:hidden" />
 
-              {/* Modal Header: รหัสใบงานตรงกลางตามแบบ Mockup */}
-              <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <div className="w-8" />
-                <h3 className="font-bold text-gray-900 text-lg text-center tracking-tight">
-                  #{selectedPMTask.id}
-                </h3>
-                <button 
-                  onClick={() => setShowTechSubmitModal(false)} 
-                  className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
-                >
+              <div className="p-5 sm:p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                    <Edit className="w-5 h-5 text-emerald-600" /> อัปเดตสถานะการทำงาน & สุขภาพอุปกรณ์
+                  </h3>
+                  <p className="text-xs text-gray-500">ใบงาน: {selectedPMTask.id} • {selectedPMTask.equipment}</p>
+                </div>
+                <button onClick={() => setShowTechSubmitModal(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Form Body */}
-              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
-                {/* 1. สถานะ */}
+              <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1">
+                {/* 1. เลือกสถานะการทำงาน (รอดำเนินการ / กำลังดำเนินการ / รออนุมัติ) */}
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-1.5">
-                    สถานะ
+                  <label className="block text-xs font-bold text-gray-800 mb-2">
+                    1. เลือกสถานะที่ต้องการปรับเปลี่ยน <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <select 
-                      value={techFormTargetStatus} 
-                      onChange={(e) => setTechFormTargetStatus(e.target.value)}
-                      className="w-full p-3.5 pr-10 border border-gray-300 rounded-2xl text-sm font-semibold text-gray-900 appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
-                      <option value="รออนุมัติ">เสร็จสิ้น (ส่งขออนุมัติปิดงาน)</option>
-                      <option value="รอดำเนินการ">รอดำเนินการ</option>
-                    </select>
-                    <ChevronDown className="w-5 h-5 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: "รอดำเนินการ", label: "รอดำเนินการ", desc: "ยังไม่เริ่มทำ", color: "border-gray-300 text-gray-700 bg-gray-50" },
+                      { id: "กำลังดำเนินการ", label: "กำลังดำเนินการ", desc: "กำลังตรวจเช็ค", color: "border-blue-500 text-blue-800 bg-blue-50" },
+                      { id: "รออนุมัติ", label: "รออนุมัติ", desc: "ส่งตรวจปิดงาน", color: "border-amber-500 text-amber-800 bg-amber-50" }
+                    ].map(st => {
+                      const isSelected = techFormTargetStatus === st.id;
+                      return (
+                        <div 
+                          key={st.id}
+                          onClick={() => setTechFormTargetStatus(st.id)}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer text-center transition-all ${isSelected ? `${st.color} shadow-xs ring-2 ring-blue-500/20 font-bold` : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}
+                        >
+                          <div className="text-xs font-bold">{st.label}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{st.desc}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* 2. ผู้ร่วมปฏิบัติงาน */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-1.5">
-                    ผู้ร่วมปฏิบัติงาน
-                  </label>
-                  <div className="relative">
-                    <select 
-                      defaultValue=""
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val && !techFormCoWorkers.includes(val)) {
-                          setTechFormCoWorkers(prev => [...prev, val]);
-                        }
-                        e.target.value = "";
-                      }}
-                      className="w-full p-3.5 pr-10 border border-gray-300 rounded-2xl text-sm text-gray-700 appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="" disabled>เลือกผู้ร่วมปฏิบัติงาน</option>
-                      {techniciansList.map(tech => (
-                        <option key={tech.name} value={tech.name}>
-                          {tech.name} - {tech.role}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-5 h-5 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-
-                  {/* แสดงรายชื่อผู้ร่วมงานที่เลือกไว้ */}
-                  {techFormCoWorkers.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {techFormCoWorkers.map(name => (
-                        <span key={name} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold border border-gray-200">
-                          <span>{name}</span>
-                          <button 
-                            type="button" 
-                            onClick={() => setTechFormCoWorkers(prev => prev.filter(n => n !== name))} 
-                            className="hover:text-rose-600 font-bold ml-1 text-gray-400"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* 3. ประเภทงาน */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-2">
-                    ประเภทงาน
-                  </label>
-                  <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-800 font-medium">
-                      <input 
-                        type="checkbox" 
-                        checked={techFormWorkTypes.includes('ซ่อมบำรุง')} 
-                        onChange={(e) => {
-                          setTechFormWorkTypes(prev => e.target.checked ? [...prev, 'ซ่อมบำรุง'] : prev.filter(x => x !== 'ซ่อมบำรุง'));
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black" 
-                      />
-                      <span>ซ่อมบำรุง</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-800 font-medium">
-                      <input 
-                        type="checkbox" 
-                        checked={techFormWorkTypes.includes('งานบริการ')} 
-                        onChange={(e) => {
-                          setTechFormWorkTypes(prev => e.target.checked ? [...prev, 'งานบริการ'] : prev.filter(x => x !== 'งานบริการ'));
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black" 
-                      />
-                      <span>งานบริการ</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* 4. อธิบายเพิ่มเติม (จำเป็น) */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-1.5">
-                    อธิบายเพิ่มเติม (จำเป็น)
-                  </label>
-                  <textarea 
-                    rows="3"
-                    value={techFormNote}
-                    onChange={(e) => setTechFormNote(e.target.value)}
-                    placeholder="เช่น สิ่งที่จะดำเนินการ หรือระยะเวลา"
-                    className="w-full p-3.5 border border-gray-300 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-gray-800"
-                  />
-                </div>
-
-                {/* Checklist Gate Enforcement (แจ้งเตือนหากเลือกเสร็จสิ้น/รออนุมัติ แต่ยังตรวจ Checklist ไม่ครบ) */}
+                {/* Checklist Gate Enforcement (ล็อกการส่งงานถ้า Checklist ยังไม่ครบ 100%) */}
                 {techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete && (
                   <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 text-xs text-rose-900 space-y-2 animate-in fade-in duration-150">
                     <div className="flex items-center gap-2 font-bold text-rose-800">
@@ -3100,7 +3007,7 @@ export default function App() {
                       ยังตรวจ Checklist ไม่ครบ ({completedCount}/{totalCount} ข้อ)
                     </div>
                     <p className="text-rose-700 leading-relaxed text-[11px]">
-                      ระบบป้องกันข้อผิดพลาด: ต้องทำการตรวจเช็คและทำเครื่องหมาย Checklist ให้ครบทุกข้อก่อนส่งขออนุมัติปิดงาน
+                      ระบบป้องกันข้อผิดพลาด: ช่างต้องทำการตรวจเช็คและทำเครื่องหมาย Checklist ให้ครบทุกข้อก่อนส่งขออนุมัติปิดงาน
                     </p>
                     <button 
                       type="button"
@@ -3118,40 +3025,85 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ประเมินสุขภาพอุปกรณ์ (แสดงเมื่อเลือกสถานะเสร็จสิ้น/รออนุมัติ) */}
-                {techFormTargetStatus === "รออนุมัติ" && (
-                  <div className="animate-in fade-in duration-200 bg-amber-50/50 p-4 rounded-2xl border border-amber-200">
+                {/* 2. ประเมินสุขภาพอุปกรณ์ (แสดงเฉพาะตอนเลือกสถานะ "รออนุมัติ" เพื่อขออนุมัติปิดงาน) */}
+                {techFormTargetStatus === "รออนุมัติ" ? (
+                  <div className="animate-in fade-in duration-200 bg-amber-50/40 p-4 rounded-2xl border border-amber-200">
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-xs font-bold text-amber-950">
-                        ประเมินสุขภาพอุปกรณ์ส่งต่อหัวหน้า <span className="text-red-500">*</span>
+                        2. ประเมินสุขภาพอุปกรณ์สำหรับการขออนุมัติปิดงาน <span className="text-red-500">*</span>
                       </label>
                       <span className="text-[11px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">ส่งต่อหัวหน้า</span>
                     </div>
+                    <p className="text-[11px] text-gray-600 mb-3">ช่างผู้ตรวจหน้างานประเมินสภาพเครื่องจักรเพื่อส่งให้ผู้จัดการพิจารณารับรองงาน</p>
 
-                    <div className="space-y-2">
-                      {[
-                        { id: "เรียบร้อย", label: "1. เรียบร้อย (Completed & Good)", desc: "เครื่องปกติสมบูรณ์ 100% พร้อมใช้งานต่อ", border: "border-emerald-500 bg-emerald-50 text-emerald-950" },
-                        { id: "งานติดตาม", label: "2. งานติดตาม (Follow-up / Watchlist)", desc: "มีจุดเฝ้าระวัง เช่น อุณหภูมิหรือสั่นปริ่มเกณฑ์", border: "border-amber-500 bg-amber-50 text-amber-950" },
-                        { id: "งานซ่อมแซม", label: "3. งานซ่อมแซม (Defect / Action Required)", desc: "พบจุดชำรุดเสียหาย ต้องเปิดใบงานซ่อมแซม", border: "border-rose-500 bg-rose-50 text-rose-950" }
-                      ].map(health => (
-                        <div 
-                          key={health.id}
-                          onClick={() => setTechFormHealth(health.id)}
-                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${techFormHealth === health.id ? `${health.border} shadow-xs ring-2 ring-emerald-500/20` : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"}`}
-                        >
-                          <div className="text-xs font-bold">{health.label}</div>
-                          <div className="text-[11px] text-gray-500 mt-0.5">{health.desc}</div>
+                    <div className="space-y-2.5">
+                      {/* หมวด 1: เรียบร้อย */}
+                      <div 
+                        onClick={() => setTechFormHealth("เรียบร้อย")}
+                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "เรียบร้อย" ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
                         </div>
-                      ))}
+                        <div>
+                          <div className="text-xs font-bold text-emerald-950">1. เรียบร้อย (Completed & Good)</div>
+                          <div className="text-xs text-emerald-800 font-semibold mt-0.5">นิยาม: เครื่องปกติสมบูรณ์ 100%</div>
+                          <p className="text-xs text-gray-500 mt-0.5">ตรวจเช็คตาม Checklist ครบถ้วน ไม่พบเสียง การสั่น หรือความร้อนผิดปกติ พร้อมใช้งานต่อ</p>
+                        </div>
+                      </div>
+
+                      {/* หมวด 2: งานติดตาม */}
+                      <div 
+                        onClick={() => setTechFormHealth("งานติดตาม")}
+                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "งานติดตาม" ? "bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                          <Clock className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-amber-950">2. งานติดตาม (Follow-up / Watchlist)</div>
+                          <div className="text-xs text-amber-800 font-semibold mt-0.5">นิยาม: มีจุดเฝ้าระวัง ต้องตรวจซ้ำ</div>
+                          <p className="text-xs text-gray-500 mt-0.5">เครื่องยังทำงานได้ แต่พบสัญญาณเตือน เช่น อุณหภูมิหรือการสั่นเริ่มสูงปริ่มเกณฑ์ ต้องติดตามผล</p>
+                        </div>
+                      </div>
+
+                      {/* หมวด 3: งานซ่อมแซม */}
+                      <div 
+                        onClick={() => setTechFormHealth("งานซ่อมแซม")}
+                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "งานซ่อมแซม" ? "bg-rose-50 border-rose-500 ring-2 ring-rose-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-rose-950">3. งานซ่อมแซม (Defect / Action Required)</div>
+                          <div className="text-xs text-rose-800 font-semibold mt-0.5">นิยาม: พบจุดชำรุดเสียหาย ต้องเปิดใบงานซ่อมแซม</div>
+                          <p className="text-xs text-gray-500 mt-0.5">พบชิ้นส่วนเสียหายหน้างาน (เช่น ซีลรั่ว สายพานใกล้ขาด ลูกปืนแตก) เกินขอบเขต Routine PM ต้องเปิด PR/WO</p>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 text-xs text-gray-500 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span>การประเมินสุขภาพอุปกรณ์จะแสดงและให้ระบุเมื่อปรับสถานะเป็น <strong>"รออนุมัติ"</strong> เพื่อขออนุมัติปิดงาน</span>
                   </div>
                 )}
 
-                {/* 5. แนบรูปภาพ คลิกที่นี่ (ตาม Mockup ภาพจริง และข้อ 10.5) */}
+                {/* 3. แนบรูปถ่ายการปฏิบัติงานหน้างานจริง (ย้ายมาไว้ที่ modal ตามคำขอ) */}
                 <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-gray-800">
+                      3. แนบรูปถ่ายการปฏิบัติงานหน้างานจริง
+                    </label>
+                    <span className="text-[11px] text-gray-400 font-medium">
+                      ({techFormPhotos.length} รูปที่แนบ)
+                    </span>
+                  </div>
+
                   {/* แสดงรูปภาพที่แนบแล้ว */}
                   {techFormPhotos.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="grid grid-cols-3 gap-2.5 mb-3">
                       {techFormPhotos.map((url, pIdx) => (
                         <div key={pIdx} className="relative rounded-2xl overflow-hidden border border-gray-200 h-24 bg-gray-100 group">
                           <img src={url} alt={`Upload ${pIdx + 1}`} className="w-full h-full object-cover" />
@@ -3159,6 +3111,7 @@ export default function App() {
                             type="button"
                             onClick={() => setTechFormPhotos(prev => prev.filter((_, i) => i !== pIdx))}
                             className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:bg-red-700 shadow-xs transition-colors"
+                            title="ลบรูปภาพนี้"
                           >
                             ×
                           </button>
@@ -3167,7 +3120,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* กล่องอัปโหลดรูปภาพตาม Mockup */}
+                  {/* กล่องอัปโหลดรูปภาพ */}
                   <input 
                     type="file" 
                     ref={techPhotoInputRef} 
@@ -3185,60 +3138,75 @@ export default function App() {
                   
                   <div 
                     onClick={() => techPhotoInputRef.current && techPhotoInputRef.current.click()}
-                    className="border border-gray-200 bg-gray-50/80 hover:bg-gray-100 transition-all rounded-3xl p-7 flex flex-col items-center justify-center cursor-pointer text-center group"
+                    className="border-2 border-dashed border-gray-300 bg-gray-50/70 hover:bg-gray-100 hover:border-gray-400 transition-all rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer text-center group"
                   >
-                    <span className="text-sm font-semibold text-gray-800">แนบรูปภาพ คลิกที่นี่</span>
-                    <ImageIcon className="w-12 h-12 text-gray-400 mt-3 stroke-[1.5] group-hover:scale-105 transition-transform" />
+                    <ImageIcon className="w-8 h-8 text-gray-400 mb-1.5 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold text-gray-700">แนบรูปภาพหน้างานเพิ่ม (คลิกที่นี่)</span>
+                    <span className="text-[11px] text-gray-400 mt-0.5">(JPG, PNG สูงสุด 10MB)</span>
                   </div>
 
                   {/* ปุ่มด่วนสำหรับเพิ่มรูปตัวอย่างทดสอบ */}
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
                     <span className="text-[11px] text-gray-400 font-medium">รูปตัวอย่างทดสอบ:</span>
                     <button 
                       type="button" 
                       onClick={() => setTechFormPhotos(prev => [...prev, 'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&q=80&w=600'])} 
                       className="text-[11px] bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-300 px-2 py-0.5 rounded-lg transition-colors font-medium"
                     >
-                      + มอเตอร์
+                      + รูปมอเตอร์
                     </button>
                     <button 
                       type="button" 
                       onClick={() => setTechFormPhotos(prev => [...prev, 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&q=80&w=600'])} 
                       className="text-[11px] bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-300 px-2 py-0.5 rounded-lg transition-colors font-medium"
                     >
-                      + หน้าปัดเกจ
+                      + รูปเกจวัด
                     </button>
                     <button 
                       type="button" 
                       onClick={() => setTechFormPhotos(prev => [...prev, 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=600'])} 
                       className="text-[11px] bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-300 px-2 py-0.5 rounded-lg transition-colors font-medium"
                     >
-                      + แผงไฟ
+                      + รูปแผงไฟ
                     </button>
                   </div>
                 </div>
+
+                {/* 4. บันทึกข้อความหน้างานเพิ่มเติม */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                    4. บันทึกข้อความหน้างานเพิ่มเติม
+                  </label>
+                  <textarea 
+                    rows="2"
+                    value={techFormNote}
+                    onChange={(e) => setTechFormNote(e.target.value)}
+                    placeholder="ระบุข้อความสรุปผล หรือ รายละเอียดที่ต้องเฝ้าระวัง/ซ่อมแซม..."
+                    className="w-full p-3 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 resize-none text-gray-800"
+                  ></textarea>
+                </div>
               </div>
 
-              {/* Modal Footer: "ไม่ใช่" / "ยืนยัน" ตามแบบ Mockup ภาพจริง */}
-              <div className="p-4 sm:p-5 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0 bg-white">
+              {/* Footer */}
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button 
-                  type="button"
                   onClick={() => setShowTechSubmitModal(false)}
-                  className="px-6 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                  className="px-4 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100"
                 >
-                  ไม่ใช่
+                  ยกเลิก
                 </button>
                 <button 
-                  type="button"
                   disabled={techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete}
                   onClick={handleTechnicianSubmit}
-                  className={`px-8 py-2.5 rounded-full text-sm font-bold transition-all shadow-sm ${
+                  className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
                     techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete
                       ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-black hover:bg-neutral-800 text-white"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
                   }`}
                 >
-                  ยืนยัน
+                  {techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete
+                    ? "กรุณาตรวจ Checklist ให้ครบก่อน"
+                    : "บันทึกการปรับเปลี่ยนสถานะ"}
                 </button>
               </div>
             </div>
