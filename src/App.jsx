@@ -6,7 +6,7 @@ import {
   Image as ImageIcon, Info, CheckSquare, Edit, X, ChevronLeft, Wrench, Layers,
   Check, RotateCcw, Activity, Sparkles, Droplet, Zap, Users,
   CheckCircle, AlertCircle, ShieldAlert, ClipboardCheck, History,
-  Award, CheckCheck, Undo2, FileText
+  Award, CheckCheck, Undo2, FileText, Trash2, Archive, Table, LayoutGrid
 } from 'lucide-react';
 
 // ==========================================
@@ -190,8 +190,12 @@ const EQUIPMENT_PM_PROFILES = {
   }
 };
 
+// Dynamic Registry สำหรับเครื่องจักรที่ถูกสร้างหรือแก้ไขใน Mock
+const dynamicEquipmentProfilesRegistry = {};
+
 // Helper: หา Profile ของเครื่องจักรตามชื่ออุปกรณ์
 const getProfileForEquipment = (eqId) => {
+  if (dynamicEquipmentProfilesRegistry[eqId]) return dynamicEquipmentProfilesRegistry[eqId];
   if (eqId.startsWith('AHU')) return EQUIPMENT_PM_PROFILES.AHU;
   if (eqId.startsWith('GEN')) return EQUIPMENT_PM_PROFILES.Generator;
   if (eqId.startsWith('PUMP')) return EQUIPMENT_PM_PROFILES.Pump;
@@ -355,21 +359,27 @@ const initialMockPMTasks = [
 export default function App() {
   const [appVersion, setAppVersion] = useState('v2'); // 'v1' (เดิม) | 'v2' (ล่าสุด)
   const [currentView, setCurrentView] = useState('pm-list');
+  const [userRole, setUserRole] = useState('manager'); // 'manager' (ผู้จัดการ) | 'technician' (ช่างหน้างาน) - แก้ไขข้อ 1.1
   const [pmViewMode, setPmViewMode] = useState('kanban'); // 'kanban' (รายวัน) | 'calendar' (รายเดือน)
   const [calendarMonth, setCalendarMonth] = useState(new Date(2026, 6, 1)); // Default July 2026
   
-  // Equipment Management States (เพิ่ม/แก้ไข/ลบ และดูประวัติ)
+  // Equipment Management States (เพิ่ม/แก้ไข/ลบ Soft Delete และดูประวัติ)
   const [equipmentsList, setEquipmentsList] = useState([
-    { id: "AHU-01", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", type: "AHU (Air Handling Unit)", location: "ชั้น B1 โซน A", interval: "รายเดือน" },
-    { id: "AHU-02", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", type: "AHU (Air Handling Unit)", location: "ชั้น 2 โซน B", interval: "รายเดือน" },
-    { id: "AHU-03", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", type: "AHU (Air Handling Unit)", location: "ชั้น 4 โซน Food Hall", interval: "รายเดือน" },
-    { id: "GEN-01", profileKey: "Generator", category: "ระบบไฟฟ้า (Electrical)", type: "Generator", location: "ชั้น B2 ห้องเครื่องกำเนิดไฟ", interval: "รายเดือน" },
-    { id: "PUMP-01", profileKey: "Pump", category: "ระบบประปาและสุขาภิบาล (Plumbing)", type: "Water Pump", location: "ชั้น B2 ห้องปั๊มน้ำดี", interval: "รายสัปดาห์" },
-    { id: "PUMP-02", profileKey: "Pump", category: "ระบบประปาและสุขาภิบาล (Plumbing)", type: "Water Pump", location: "ชั้น ดาดฟ้า Booster Pump", interval: "รายสัปดาห์" },
-    { id: "CH-01", profileKey: "Chiller", category: "ระบบปรับอากาศ (HVAC)", type: "Chiller", location: "ชั้น B3 Plant Room", interval: "ราย3เดือน" },
-    { id: "MDB-01", profileKey: "Generator", category: "ระบบไฟฟ้า (Electrical)", type: "MDB (Main Distribution Board)", location: "ชั้น B1 ห้องไฟฟ้า", interval: "รายปี" }
+    { id: "AHU-01", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", type: "AHU (Air Handling Unit)", location: "ชั้น B1 โซน A", interval: "รายเดือน", isArchived: false },
+    { id: "AHU-02", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", type: "AHU (Air Handling Unit)", location: "ชั้น 2 โซน B", interval: "รายเดือน", isArchived: false },
+    { id: "AHU-03", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", type: "AHU (Air Handling Unit)", location: "ชั้น 4 โซน Food Hall", interval: "รายเดือน", isArchived: false },
+    { id: "GEN-01", profileKey: "Generator", category: "ระบบไฟฟ้า (Electrical)", type: "Generator", location: "ชั้น B2 ห้องเครื่องกำเนิดไฟ", interval: "รายเดือน", isArchived: false },
+    { id: "PUMP-01", profileKey: "Pump", category: "ระบบประปาและสุขาภิบาล (Plumbing)", type: "Water Pump", location: "ชั้น B2 ห้องปั๊มน้ำดี", interval: "รายสัปดาห์", isArchived: false },
+    { id: "PUMP-02", profileKey: "Pump", category: "ระบบประปาและสุขาภิบาล (Plumbing)", type: "Water Pump", location: "ชั้น ดาดฟ้า Booster Pump", interval: "รายสัปดาห์", isArchived: false },
+    { id: "CH-01", profileKey: "Chiller", category: "ระบบปรับอากาศ (HVAC)", type: "Chiller", location: "ชั้น B3 Plant Room", interval: "ราย3เดือน", isArchived: false },
+    { id: "MDB-01", profileKey: "Generator", category: "ระบบไฟฟ้า (Electrical)", type: "MDB (Main Distribution Board)", location: "ชั้น B1 ห้องไฟฟ้า", interval: "รายปี", isArchived: false }
   ]);
   const [searchEq, setSearchEq] = useState("");
+  const [eqViewMode, setEqViewMode] = useState('card'); // 'card' | 'table' - แก้ไขข้อ 3.1
+  const [showArchivedSection, setShowArchivedSection] = useState(true);
+  const [showDeleteEqModal, setShowDeleteEqModal] = useState(false);
+  const [eqToDelete, setEqToDelete] = useState(null);
+
   // Kanban Technician Multi-Select & Search
   const [selectedKanbanTechs, setSelectedKanbanTechs] = useState([]); // [] = แสดงทุกคน
   const [isKanbanTechDropdownOpen, setIsKanbanTechDropdownOpen] = useState(false);
@@ -388,6 +398,7 @@ export default function App() {
   const [editingEq, setEditingEq] = useState(null);
   const [eqFormId, setEqFormId] = useState("");
   const [eqFormCategory, setEqFormCategory] = useState("ระบบปรับอากาศ (HVAC)");
+  const [eqFormType, setEqFormType] = useState("AHU (Air Handling Unit)"); // แก้ไข Error ตัวแปรไม่ถูกประกาศ
   const [eqFormLocation, setEqFormLocation] = useState("");
   const [eqFormInterval, setEqFormInterval] = useState("รายเดือน");
   // ตั้งค่ารอบซ่อมบำรุงในอุปกรณ์ (เลือกได้ทั้ง 1M, 6M, 1Y ไม่จำเป็นต้องครบทั้ง 3)
@@ -427,8 +438,8 @@ export default function App() {
   // Equipment List View State
   const [selectedEquipment, setSelectedEquipment] = useState(null);
 
-  // สถิติ: ตัวกรองช่วงเวลา (รายเดือน vs รายวัน พร้อม Picker) และตัวกรองช่าง Multi-Select
-  const [statsTimeMode, setStatsTimeMode] = useState('daily'); // 'daily' | 'monthly'
+  // สถิติ: ตัวกรองช่วงเวลา - ค่าตั้งต้นเป็น 'monthly' รายเดือน (แก้ไขข้อ 2.2 เพื่อลดความสับสน)
+  const [statsTimeMode, setStatsTimeMode] = useState('monthly'); // 'monthly' | 'daily'
   const [statsMonth, setStatsMonth] = useState('2026-07'); // Default July 2026
   const [statsDate, setStatsDate] = useState('2026-07-11'); // Default 11 ก.ค. 2569 (วันนี้)
   const [selectedStatsTechs, setSelectedStatsTechs] = useState([]); // [] = ช่างทุกคน
@@ -452,17 +463,6 @@ export default function App() {
 
     return true;
   });
-
-  // รายการอุปกรณ์ทั้งหมดในห้าง
-  const equipmentCatalog = [
-    { id: "AHU-01", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", location: "ชั้น B1 โซน A", interval: "รายเดือน" },
-    { id: "AHU-02", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", location: "ชั้น 2 โซน B", interval: "รายเดือน" },
-    { id: "AHU-03", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", location: "ชั้น 4 โซน Food Hall", interval: "รายเดือน" },
-    { id: "GEN-01", profileKey: "Generator", category: "ระบบไฟฟ้า (Electrical)", location: "ชั้น B2 ห้องเครื่องกำเนิดไฟ", interval: "รายเดือน" },
-    { id: "PUMP-01", profileKey: "Pump", category: "ระบบประปาและสุขาภิบาล (Plumbing)", location: "ชั้น B2 ห้องปั๊มน้ำดี", interval: "รายเดือน" },
-    { id: "PUMP-02", profileKey: "Pump", category: "ระบบประปาและสุขาภิบาล (Plumbing)", location: "ชั้น ดาดฟ้า Booster Pump", interval: "รายเดือน" },
-    { id: "CH-01", profileKey: "Chiller", category: "ระบบปรับอากาศ (HVAC)", location: "ชั้น B3 Plant Room", interval: "รายเดือน" }
-  ];
 
   // Helper ดึง Checklist ปัจจุบันของใบงาน
   const getTaskChecklist = (task) => {
@@ -693,31 +693,31 @@ export default function App() {
           <div className="space-y-1">
             <div 
               onClick={() => setCurrentView('pm-list')}
-              className={`p-3 text-sm rounded-xl cursor-pointer font-medium flex items-center justify-between transition-colors ${currentView === 'pm-list' ? 'bg-[#1a1a1a] text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
+              className={`p-3 text-sm rounded-xl cursor-pointer font-medium flex items-center justify-between transition-colors ${currentView === 'pm-list' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
             >
               <div className="flex items-center gap-2.5">
-                <CalendarDays className="w-4 h-4 text-blue-500" />
+                <CalendarDays className={`w-4 h-4 ${currentView === 'pm-list' ? 'text-white' : 'text-blue-500'}`} />
                 <span>รายการ PM</span>
               </div>
-              <span className="text-xs bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">{pmTasks.length}</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${currentView === 'pm-list' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'}`}>{pmTasks.length}</span>
             </div>
 
             <div 
               onClick={() => setCurrentView('pm-monthly-summary')}
-              className={`p-3 text-sm rounded-xl cursor-pointer font-medium flex items-center justify-between transition-colors ${currentView === 'pm-monthly-summary' ? 'bg-[#1a1a1a] text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
+              className={`p-3 text-sm rounded-xl cursor-pointer font-medium flex items-center justify-between transition-colors ${currentView === 'pm-monthly-summary' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
             >
               <div className="flex items-center gap-2.5">
-                <PieChart className="w-4 h-4 text-emerald-500" />
+                <PieChart className={`w-4 h-4 ${currentView === 'pm-monthly-summary' ? 'text-white' : 'text-emerald-500'}`} />
                 <span>สถิติ</span>
               </div>
             </div>
 
             <div 
               onClick={() => setCurrentView('pm-equipment')}
-              className={`p-3 text-sm rounded-xl cursor-pointer font-medium flex items-center justify-between transition-colors ${currentView === 'pm-equipment' ? 'bg-[#1a1a1a] text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
+              className={`p-3 text-sm rounded-xl cursor-pointer font-medium flex items-center justify-between transition-colors ${currentView === 'pm-equipment' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
             >
               <div className="flex items-center gap-2.5">
-                <Layers className="w-4 h-4 text-purple-500" />
+                <Layers className={`w-4 h-4 ${currentView === 'pm-equipment' ? 'text-white' : 'text-purple-500'}`} />
                 <span>รายการอุปกรณ์</span>
               </div>
             </div>
@@ -725,14 +725,18 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Profile Footer */}
+      {/* Profile Footer (แสดงตามบทบาทที่สวมอยู่ - แก้ไขข้อ 1.1) */}
       <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
-          ผจก.
+        <div className={`w-9 h-9 rounded-full ${userRole === 'manager' ? 'bg-blue-600' : 'bg-emerald-600'} text-white flex items-center justify-center font-bold text-xs shadow-xs`}>
+          {userRole === 'manager' ? 'ผจก.' : 'ช่าง'}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold text-gray-900 truncate">หัวหน้าแผนกวิศวกรรม</div>
-          <div className="text-xs text-gray-500 truncate">อนุมัติปิดงาน & มอบหมายงาน</div>
+          <div className="text-xs font-bold text-gray-900 truncate">
+            {userRole === 'manager' ? 'หัวหน้าแผนกวิศวกรรม' : 'EMP สมชาย (ช่างแอร์)'}
+          </div>
+          <div className="text-xs text-gray-500 truncate">
+            {userRole === 'manager' ? 'อนุมัติปิดงาน & มอบหมายงาน' : 'ตรวจเช็คหน้างาน & ส่งงาน'}
+          </div>
         </div>
       </div>
     </aside>
@@ -749,8 +753,9 @@ export default function App() {
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Top Header */}
         <header className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-white border-b border-gray-200 z-10 sticky top-0">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="font-bold text-gray-900 text-base">ระบบตรวจและบริหารงานบำรุงรักษาเชิงป้องกัน (TMG-PM)</span>
+            
             {/* Version Switcher Pill */}
             <div className="bg-gray-100 p-1 rounded-xl flex items-center border border-gray-200 text-xs shadow-2xs">
               <button 
@@ -764,6 +769,29 @@ export default function App() {
                 className={`px-3 py-1 rounded-lg font-bold transition-all ${appVersion === 'v2' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
               >
                 Version ล่าสุด
+              </button>
+            </div>
+
+            {/* Role Switcher Pill (แก้ไขข้อ 1.1: แยกบทบาท ช่างหน้างาน vs ผู้จัดการ) */}
+            <div className="bg-gray-100 p-1 rounded-xl flex items-center border border-gray-200 text-xs shadow-2xs">
+              <span className="text-[11px] font-bold text-gray-500 px-2 flex items-center gap-1">
+                สวมบทบาท:
+              </span>
+              <button 
+                type="button"
+                onClick={() => setUserRole('manager')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${userRole === 'manager' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                ผู้จัดการ (ผจก.)
+              </button>
+              <button 
+                type="button"
+                onClick={() => setUserRole('technician')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${userRole === 'technician' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                <User className="w-3.5 h-3.5" />
+                ช่างหน้างาน
               </button>
             </div>
           </div>
@@ -802,7 +830,7 @@ export default function App() {
                 <div className="flex items-center gap-2 bg-white p-1 rounded-2xl border border-gray-200 shadow-xs shrink-0">
                   <button 
                     onClick={() => setPmViewMode('kanban')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${pmViewMode === 'kanban' ? 'bg-black text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${pmViewMode === 'kanban' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
                   >
                     <CalendarDays className="w-4 h-4" />
                     <span>มุมมองรายวัน (Kanban)</span>
@@ -1226,10 +1254,10 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* ปุ่ม Action ประจำหน้า */}
+                {/* ปุ่ม Action ประจำหน้า (แยกตามบทบาท ช่าง vs ผจก. - แก้ไขข้อ 1.1) */}
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* ปุ่มปรับสถานะการทำงานของช่าง (เลือกระหว่าง รอดำเนินการ, กำลังดำเนินการ, รออนุมัติ และประเมินสุขภาพ) */}
-                  {selectedPMTask.status !== 'อนุมัติแล้ว' && (
+                  {/* ปุ่มช่าง: ปรับสถานะ & ประเมินสุขภาพ (แสดงเฉพาะบทบาทช่าง และงานยังไม่อนุมัติ) */}
+                  {userRole === 'technician' && selectedPMTask.status !== 'อนุมัติแล้ว' && (
                     <button 
                       onClick={() => {
                         setTechFormTargetStatus(selectedPMTask.status === 'รอดำเนินการ' ? 'กำลังดำเนินการ' : 'รออนุมัติ');
@@ -1237,20 +1265,34 @@ export default function App() {
                         setTechFormNote(selectedPMTask.technicianNote || '');
                         setShowTechSubmitModal(true);
                       }}
-                      className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shadow-sm text-sm font-bold"
+                      className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-colors shadow-sm text-sm font-bold"
                     >
                       <Edit className="w-4 h-4" /> อัปเดตสถานะ & ประเมินสุขภาพอุปกรณ์
                     </button>
                   )}
 
-                  {/* หัวหน้าอนุมัติ/ตีกลับ (เมื่อสถานะเป็น 'รออนุมัติ') */}
-                  {selectedPMTask.status === 'รออนุมัติ' && (
+                  {/* สัญลักษณ์แจ้งเตือนช่างเมื่องานรออนุมัติ */}
+                  {userRole === 'technician' && selectedPMTask.status === 'รออนุมัติ' && (
+                    <span className="text-xs bg-amber-50 text-amber-800 font-bold px-3 py-2 rounded-xl border border-amber-200 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-amber-600" /> ส่งผลตรวจแล้ว รอผู้จัดการอนุมัติปิดงาน
+                    </span>
+                  )}
+
+                  {/* ปุ่มหัวหน้า: อนุมัติ/ตีกลับ (แสดงเฉพาะบทบาทผู้จัดการ และสถานะเป็น 'รออนุมัติ') */}
+                  {userRole === 'manager' && selectedPMTask.status === 'รออนุมัติ' && (
                     <button 
                       onClick={() => setShowManagerApprovalModal(true)}
-                      className="flex items-center gap-2 bg-black text-white px-5 py-2.5 rounded-xl hover:bg-gray-800 transition-colors shadow-sm text-sm font-bold"
+                      className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shadow-sm text-sm font-bold"
                     >
-                      <ShieldAlert className="w-4 h-4 text-amber-400" /> ตรวจสอบ & อนุมัติปิดงาน (ผจก.)
+                      <ShieldAlert className="w-4 h-4 text-white" /> ตรวจสอบ & อนุมัติปิดงาน (ผจก.)
                     </button>
+                  )}
+
+                  {/* ข้อความแจ้งเตือนผู้จัดการเมื่องานยังอยู่ระหว่างดำเนินการของช่าง */}
+                  {userRole === 'manager' && selectedPMTask.status !== 'รออนุมัติ' && selectedPMTask.status !== 'อนุมัติแล้ว' && (
+                    <span className="text-xs bg-blue-50 text-blue-800 font-bold px-3 py-2 rounded-xl border border-blue-200 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-blue-600" /> อยู่ระหว่างการปฏิบัติงานของช่าง
+                    </span>
                   )}
                 </div>
               </div>
@@ -1282,16 +1324,18 @@ export default function App() {
                   <div>
                     <div className="flex justify-between items-start mb-1">
                       <span className="text-xs font-semibold text-gray-400">ผู้รับผิดชอบ (มอบหมายโดยผู้จัดการ)</span>
-                      <button 
-                        onClick={() => {
-                          setTaskToReassign(selectedPMTask);
-                          setNewAssigneeName(selectedPMTask.assignees[0] || "EMP สมชาย (ช่างแอร์)");
-                          setShowReassignModal(true);
-                        }}
-                        className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
-                      >
-                        <Edit className="w-3 h-3" /> เปลี่ยนช่าง
-                      </button>
+                      {userRole === 'manager' && (
+                        <button 
+                          onClick={() => {
+                            setTaskToReassign(selectedPMTask);
+                            setNewAssigneeName(selectedPMTask.assignees[0] || "EMP สมชาย (ช่างแอร์)");
+                            setShowReassignModal(true);
+                          }}
+                          className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
+                        >
+                          <Edit className="w-3 h-3" /> เปลี่ยนช่าง
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
                       <User className="w-4 h-4 text-gray-500" />
@@ -1326,7 +1370,11 @@ export default function App() {
                       <ClipboardCheck className="w-5 h-5 text-blue-600" />
                       รายการตรวจสอบมาตรฐาน (Standard Checklist สำหรับ {selectedPMTask.equipment} รอบ {selectedPMTask.cycle})
                     </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">ช่างทำเครื่องหมายว่าได้ทำการซ่อมบำรุงตามรายการประเภทงานของอุปกรณ์นั้นๆ ครบถ้วน</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {userRole === 'technician' 
+                        ? 'ช่างทำเครื่องหมายว่าได้ทำการซ่อมบำรุงตามรายการครบถ้วน (คลิกเพื่อทำเครื่องหมาย)' 
+                        : 'รายการตรวจมาตรฐานของอุปกรณ์นี้ (โหมดตรวจสอบผลงานสำหรับผู้จัดการ)'}
+                    </p>
                   </div>
                   <div className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
                     ตรวจแล้ว {(selectedPMTask.completedChecklistIds || []).length} / {getTaskChecklist(selectedPMTask).length} รายการ
@@ -1342,8 +1390,12 @@ export default function App() {
                     return (
                       <div 
                         key={item.id}
-                        onClick={() => handleToggleChecklistItem(item.id)}
-                        className={`p-4 rounded-2xl border transition-all flex items-start gap-4 cursor-pointer select-none ${isChecked ? 'bg-emerald-50/40 border-emerald-300 shadow-2xs' : 'bg-gray-50 border-gray-200 hover:border-gray-300'}`}
+                        onClick={() => {
+                          if (userRole === 'technician') {
+                            handleToggleChecklistItem(item.id);
+                          }
+                        }}
+                        className={`p-4 rounded-2xl border transition-all flex items-start gap-4 select-none ${userRole === 'technician' ? 'cursor-pointer hover:border-blue-300' : 'cursor-default'} ${isChecked ? 'bg-emerald-50/40 border-emerald-300 shadow-2xs' : 'bg-gray-50 border-gray-200'}`}
                       >
                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border transition-colors ${isChecked ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
                           {isChecked && <Check className="w-4 h-4 stroke-[3]" />}
@@ -1778,18 +1830,33 @@ export default function App() {
                                 </span>
                               </div>
 
-                              {/* แถบ Progress ความคืบหน้า */}
+                              {/* แถบ Progress ความคืบหน้า (2 สีหลัก: สีเขียว อนุมัติแล้ว vs สีน้ำเงิน คงค้าง - แก้ไขข้อ 2.4 ลด Visual Overload) */}
                               <div className="bg-white p-3.5 rounded-2xl border border-gray-200 space-y-2">
                                 <div className="flex justify-between items-center text-xs font-medium">
                                   <span className="text-gray-500">ความสำเร็จของงาน:</span>
                                   <span className="font-bold text-gray-900">{doneCount}/{assignedTasks.length} ({completionRate}%)</span>
                                 </div>
-                                <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden flex">
-                                  <div style={{ width: `${assignedTasks.length ? (doneCount / assignedTasks.length) * 100 : 0}%` }} className="bg-emerald-500 h-full" title="อนุมัติแล้ว" />
-                                  <div style={{ width: `${assignedTasks.length ? (reviewCount / assignedTasks.length) * 100 : 0}%` }} className="bg-amber-500 h-full" title="รออนุมัติ" />
-                                  <div style={{ width: `${assignedTasks.length ? (inProgCount / assignedTasks.length) * 100 : 0}%` }} className="bg-blue-500 h-full" title="กำลังดำเนินการ" />
-                                  <div style={{ width: `${assignedTasks.length ? (reworkCount / assignedTasks.length) * 100 : 0}%` }} className="bg-rose-500 h-full" title="ส่งกลับแก้ไข" />
-                                  <div style={{ width: `${assignedTasks.length ? (pendingCount / assignedTasks.length) * 100 : 0}%` }} className="bg-gray-300 h-full" title="รอดำเนินการ" />
+                                <div className="h-2.5 w-full bg-blue-100 rounded-full overflow-hidden flex">
+                                  <div 
+                                    style={{ width: `${assignedTasks.length ? (doneCount / assignedTasks.length) * 100 : 0}%` }} 
+                                    className="bg-emerald-500 h-full transition-all duration-300" 
+                                    title={`อนุมัติแล้ว: ${doneCount} งาน`} 
+                                  />
+                                  <div 
+                                    style={{ width: `${assignedTasks.length ? ((assignedTasks.length - doneCount) / assignedTasks.length) * 100 : 0}%` }} 
+                                    className="bg-blue-400 h-full transition-all duration-300" 
+                                    title={`คงค้าง/กำลังทำ: ${assignedTasks.length - doneCount} งาน`} 
+                                  />
+                                </div>
+                                <div className="flex justify-between text-[11px] text-gray-500 pt-0.5">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                                    อนุมัติแล้ว: <strong className="text-emerald-700">{doneCount}</strong>
+                                  </span>
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                                    คงค้าง: <strong className="text-blue-700">{assignedTasks.length - doneCount}</strong>
+                                  </span>
                                 </div>
                               </div>
 
@@ -2048,7 +2115,7 @@ export default function App() {
                     onChange={(e) => setCreatePM_equipment(e.target.value)}
                     className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-blue-500"
                   >
-                    {equipmentCatalog.map(eq => (
+                    {equipmentsList.filter(eq => !eq.isArchived).map(eq => (
                       <option key={eq.id} value={eq.id}>{eq.id} - {eq.category} ({eq.location})</option>
                     ))}
                   </select>
@@ -2171,160 +2238,424 @@ export default function App() {
           )}
 
           {/* ======================================================== */}
-          {/* VIEW 5: EQUIPMENT MANAGEMENT (จัดการ เพิ่ม/แก้ไข และดูประวัติการซ่อมบำรุง) */}
+          {/* VIEW 5: EQUIPMENT MANAGEMENT (จัดการ เพิ่ม/แก้ไข/ลบ Soft Delete และดูประวัติ) */}
           {/* ======================================================== */}
-          {currentView === 'pm-equipment' && (
-            <div className="space-y-6 max-w-6xl mx-auto">
-              {!selectedEquipment ? (
-                <>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">ทะเบียนรายการเครื่องจักร & อุปกรณ์ (Equipment Master)</h2>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        จัดการ เพิ่ม/แก้ไขข้อมูลอุปกรณ์ และคลิกเพื่อดูประวัติการบำรุงรักษาเชิงป้องกันย้อนหลัง
-                      </p>
-                    </div>
+          {currentView === 'pm-equipment' && (() => {
+            const activeEquipments = equipmentsList.filter(eq => !eq.isArchived);
+            const archivedEquipments = equipmentsList.filter(eq => eq.isArchived);
+            const filteredActiveEquipments = activeEquipments
+              .filter(eq => selectedEqCategory === "all" || eq.category === selectedEqCategory)
+              .filter(eq => searchEq === "" || eq.id.toLowerCase().includes(searchEq.toLowerCase()) || eq.category.toLowerCase().includes(searchEq.toLowerCase()) || eq.location.toLowerCase().includes(searchEq.toLowerCase()));
 
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                        <input 
-                          type="text" 
-                          value={searchEq}
-                          onChange={(e) => setSearchEq(e.target.value)}
-                          placeholder="ค้นหารหัส/ชื่ออุปกรณ์ หรือ หมวดหมู่..."
-                          className="pl-9 pr-4 py-2 bg-white rounded-xl border border-gray-300 text-xs w-64 focus:ring-2 focus:ring-blue-500"
-                        />
+            const handleOpenEditEqModal = (eq) => {
+              setEditingEq(eq);
+              setEqFormId(eq.id);
+              setEqFormCategory(eq.category);
+              setEqFormType(eq.type || "AHU (Air Handling Unit)");
+              setEqFormLocation(eq.location);
+              setEqFormInterval(eq.interval);
+              
+              const profile = getProfileForEquipment(eq.id);
+              setEqCyclesConfig({
+                "1M": profile.cycles && profile.cycles["1M"] ? {
+                  enabled: true,
+                  serviceTypeIds: profile.cycles["1M"].serviceTypeIds || [],
+                  checklistStr: (profile.cycles["1M"].checklist || []).map(c => c.text).join("\n")
+                } : { enabled: false, serviceTypeIds: ["filter", "belt", "electrical"], checklistStr: "" },
+                "6M": profile.cycles && profile.cycles["6M"] ? {
+                  enabled: true,
+                  serviceTypeIds: profile.cycles["6M"].serviceTypeIds || [],
+                  checklistStr: (profile.cycles["6M"].checklist || []).map(c => c.text).join("\n")
+                } : { enabled: false, serviceTypeIds: ["coil", "motor", "lubricant"], checklistStr: "" },
+                "1Y": profile.cycles && profile.cycles["1Y"] ? {
+                  enabled: true,
+                  serviceTypeIds: profile.cycles["1Y"].serviceTypeIds || [],
+                  checklistStr: (profile.cycles["1Y"].checklist || []).map(c => c.text).join("\n")
+                } : { enabled: false, serviceTypeIds: ["belt", "motor", "electrical"], checklistStr: "" }
+              });
+              setShowAddEditEqModal(true);
+            };
+
+            const handleOpenAddEqModal = () => {
+              setEditingEq(null);
+              setEqFormId("");
+              setEqFormCategory("ระบบปรับอากาศ (HVAC)");
+              setEqFormType("AHU (Air Handling Unit)");
+              setEqFormLocation("");
+              setEqFormInterval("รายเดือน");
+              setEqCyclesConfig({
+                "1M": { enabled: true, serviceTypeIds: ["filter", "belt", "electrical"], checklistStr: "ตรวจเช็คการสั่นสะเทือนและเสียงผิดปกติ\nทำความสะอาดฟิลเตอร์\nเช็คความตึงสายพาน\nวัดกระแสไฟฟ้า" },
+                "6M": { enabled: true, serviceTypeIds: ["coil", "motor", "lubricant"], checklistStr: "ล้างคอยล์เย็น\nอัดจารบีแบริ่งลูกปืน\nMegger Test มอเตอร์" },
+                "1Y": { enabled: false, serviceTypeIds: ["belt", "motor", "electrical"], checklistStr: "เปลี่ยนสายพานชุดใหม่\nตรวจสมดุลใบพัดลม\nสอบเทียบเซนเซอร์" }
+              });
+              setShowAddEditEqModal(true);
+            };
+
+            return (
+              <div className="space-y-6 max-w-6xl mx-auto">
+                {!selectedEquipment ? (
+                  <>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">ทะเบียนรายการเครื่องจักร & อุปกรณ์ (Equipment Master)</h2>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          จัดการ เพิ่ม/แก้ไข/ยกเลิกใช้งานข้อมูลอุปกรณ์ (Soft Delete) และคลิกเพื่อดูประวัติการซ่อมบำรุงย้อนหลัง
+                        </p>
                       </div>
-                      <button 
-                        onClick={() => {
-                          setEditingEq(null);
-                          setEqFormId("");
-                          setEqFormCategory("ระบบปรับอากาศ (HVAC)");
-                          setEqFormType("AHU (Air Handling Unit)");
-                          setEqFormLocation("");
-                          setEqFormInterval("รายเดือน");
-                          setShowAddEditEqModal(true);
-                        }}
-                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 shadow-sm"
-                      >
-                        <Plus className="w-4 h-4" /> เพิ่มอุปกรณ์ใหม่
-                      </button>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* ค้นหา */}
+                        <div className="relative">
+                          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                          <input 
+                            type="text" 
+                            value={searchEq}
+                            onChange={(e) => setSearchEq(e.target.value)}
+                            placeholder="ค้นหารหัส/ชื่ออุปกรณ์ หรือ หมวดหมู่..."
+                            className="pl-9 pr-4 py-2 bg-white rounded-xl border border-gray-300 text-xs w-60 focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                        </div>
+
+                        {/* สลับมุมมอง การ์ด vs ตาราง (แก้ไขข้อ 3.1) */}
+                        <div className="bg-gray-100 p-1 rounded-xl flex items-center border border-gray-200 text-xs shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => setEqViewMode('card')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${eqViewMode === 'card' ? 'bg-blue-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                          >
+                            <LayoutGrid className="w-3.5 h-3.5" />
+                            <span>การ์ด</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEqViewMode('table')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${eqViewMode === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'}`}
+                          >
+                            <Table className="w-3.5 h-3.5" />
+                            <span>ตาราง</span>
+                          </button>
+                        </div>
+
+                        {/* ปุ่มเพิ่มอุปกรณ์ใหม่ (เฉพาะผู้จัดการ) */}
+                        {userRole === 'manager' && (
+                          <button 
+                            onClick={handleOpenAddEqModal}
+                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 shadow-sm transition-colors"
+                          >
+                            <Plus className="w-4 h-4" /> เพิ่มอุปกรณ์ใหม่
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* หมวดหมู่ตัวกรอง (Category Filter Tabs) */}
-                  <div className="flex flex-wrap gap-2">
-                    {["all", "ระบบปรับอากาศ (HVAC)", "ระบบไฟฟ้า (Electrical)", "ระบบประปาและสุขาภิบาล (Plumbing)"].map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedEqCategory(cat)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${selectedEqCategory === cat ? "bg-black text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
-                      >
-                        {cat === "all" ? "ทุกหมวดหมู่อุปกรณ์" : cat}
-                      </button>
-                    ))}
-                  </div>
+                    {/* หมวดหมู่ตัวกรอง (Category Filter Tabs - แก้ไขสี Accent ข้อ 3.3) */}
+                    <div className="flex flex-wrap gap-2">
+                      {["all", "ระบบปรับอากาศ (HVAC)", "ระบบไฟฟ้า (Electrical)", "ระบบประปาและสุขาภิบาล (Plumbing)"].map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => setSelectedEqCategory(cat)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${selectedEqCategory === cat ? "bg-blue-600 text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
+                        >
+                          {cat === "all" ? `ทุกหมวดหมู่ (${activeEquipments.length})` : cat}
+                        </button>
+                      ))}
+                    </div>
 
-                  {/* Grid Cards รายการอุปกรณ์ */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {equipmentsList
-                      .filter(eq => selectedEqCategory === "all" || eq.category === selectedEqCategory)
-                      .filter(eq => searchEq === "" || eq.id.toLowerCase().includes(searchEq.toLowerCase()) || eq.category.toLowerCase().includes(searchEq.toLowerCase()) || eq.location.toLowerCase().includes(searchEq.toLowerCase()))
-                      .map(eq => {
-                        const history = pmTasks.filter(t => t.equipment === eq.id);
-                        const lastTask = history.length > 0 ? history[0] : null;
-                        const profile = getProfileForEquipment(eq.id);
+                    {/* แสดงรายการอุปกรณ์ (Empty State - แก้ไขข้อ 3.4) */}
+                    {filteredActiveEquipments.length === 0 ? (
+                      <div className="bg-white rounded-3xl p-12 text-center border border-gray-200 shadow-sm space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-400 mx-auto flex items-center justify-center">
+                          <Search className="w-6 h-6" />
+                        </div>
+                        <h3 className="font-bold text-gray-800 text-base">ไม่พบรายการอุปกรณ์ตามเงื่อนไข</h3>
+                        <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                          ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อุปกรณ์อื่น
+                        </p>
+                        <button
+                          onClick={() => { setSearchEq(''); setSelectedEqCategory('all'); }}
+                          className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+                        >
+                          ล้างตัวกรองทั้งหมด
+                        </button>
+                      </div>
+                    ) : eqViewMode === 'card' ? (
+                      /* มุมมองการ์ด (Card View) */
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredActiveEquipments.map(eq => {
+                          const history = pmTasks.filter(t => t.equipment === eq.id);
+                          const lastTask = history.length > 0 ? history[0] : null;
+                          const profile = getProfileForEquipment(eq.id);
 
-                        return (
-                          <div key={eq.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 flex flex-col justify-between hover:shadow-md transition-shadow">
-                            <div>
-                              <div className="flex justify-between items-start mb-3">
-                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                                  <Settings className="w-6 h-6" />
+                          return (
+                            <div key={eq.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 flex flex-col justify-between hover:shadow-md transition-shadow">
+                              <div>
+                                <div className="flex justify-between items-start mb-3">
+                                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                                    <Settings className="w-6 h-6" />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {/* ปุ่มแก้ไขข้อมูลเครื่องจักร */}
+                                    {userRole === 'manager' && (
+                                      <>
+                                        <button 
+                                          onClick={() => handleOpenEditEqModal(eq)}
+                                          className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+                                          title="แก้ไขข้อมูลเครื่องจักร"
+                                        >
+                                          <Edit className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button 
+                                          onClick={() => {
+                                            setEqToDelete(eq);
+                                            setShowDeleteEqModal(true);
+                                          }}
+                                          className="p-1.5 hover:bg-rose-50 rounded-lg text-gray-400 hover:text-rose-600 transition-colors"
+                                          title="ยกเลิกการใช้งานอุปกรณ์ (Soft Delete)"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                  {/* ปุ่มแก้ไขข้อมูลเครื่องจักร */}
-                                  <button 
-                                    onClick={() => {
-                                      setEditingEq(eq);
-                                      setEqFormId(eq.id);
-                                      setEqFormCategory(eq.category);
-                                      setEqFormType(eq.type);
-                                      setEqFormLocation(eq.location);
-                                      setEqFormInterval(eq.interval);
-                                      setShowAddEditEqModal(true);
-                                    }}
-                                    className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-blue-600"
-                                    title="แก้ไขข้อมูลเครื่องจักร"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
+
+                                <h3 className="font-bold text-gray-900 text-xl mb-1">{eq.id}</h3>
+                                <p className="text-xs text-gray-500 mb-1 font-medium">{eq.category}</p>
+                                <p className="text-xs text-gray-400 mb-3">{eq.location}</p>
+
+                                {/* สถิติการทำ PM */}
+                                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 mb-3 text-xs space-y-1">
+                                  <div className="flex justify-between text-gray-600">
+                                    <span>ทำ PM ในระบบแล้ว:</span>
+                                    <span className="font-bold text-gray-900">{history.length} ครั้ง</span>
+                                  </div>
+                                  <div className="flex justify-between text-gray-600">
+                                    <span>สถานะล่าสุด:</span>
+                                    <span className="font-bold text-blue-600">{lastTask ? `${lastTask.date} (${lastTask.status})` : "-"}</span>
+                                  </div>
+                                </div>
+
+                                {/* แท็กประเภทงาน Service มาตรฐานของเครื่องนี้ */}
+                                <div className="pt-2 border-t border-gray-100">
+                                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1.5">ประเภทงาน Service ที่ตั้งไว้:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {profile.cycles && (profile.cycles["1M"] || profile.cycles["6M"] || profile.cycles["1Y"]) ? (
+                                      (profile.cycles["1M"]?.serviceTypeIds || profile.cycles["6M"]?.serviceTypeIds || []).map(stId => (
+                                        <span key={stId} className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs font-medium">
+                                          {getServiceTypeInfo(stId).shortName}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="text-xs text-gray-400">ยังไม่ได้ระบุ</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
-                              <h3 className="font-bold text-gray-900 text-xl mb-1">{eq.id}</h3>
-                              <p className="text-xs text-gray-500 mb-1 font-medium">{eq.category}</p>
-                              <p className="text-xs text-gray-400 mb-3">{eq.location}</p>
+                              <div className="mt-5 pt-4 border-t border-gray-100 flex gap-2">
+                                {/* ปุ่มดูประวัติการซ่อมบำรุงย้อนหลัง */}
+                                <button 
+                                  onClick={() => setSelectedEquipment(eq.id)}
+                                  className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                                >
+                                  <History className="w-3.5 h-3.5 text-gray-500" />
+                                  <span>ดูประวัติ ({history.length})</span>
+                                </button>
 
-                              {/* สถิติการทำ PM */}
-                              <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 mb-3 text-xs space-y-1">
-                                <div className="flex justify-between text-gray-600">
-                                  <span>ทำ PM ในระบบแล้ว:</span>
-                                  <span className="font-bold text-gray-900">{history.length} ครั้ง</span>
-                                </div>
-                                <div className="flex justify-between text-gray-600">
-                                  <span>สถานะล่าสุด:</span>
-                                  <span className="font-bold text-blue-600">{lastTask ? `${lastTask.date} (${lastTask.status})` : "-"}</span>
-                                </div>
-                              </div>
-
-                              {/* แท็กประเภทงาน Service มาตรฐานของเครื่องนี้ */}
-                              <div className="pt-2 border-t border-gray-100">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1.5">ประเภทงาน Service ที่ต้องทำ:</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {profile.cycles["1M"]?.serviceTypeIds.map(stId => (
-                                    <span key={stId} className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs font-medium">
-                                      {getServiceTypeInfo(stId).shortName}
-                                    </span>
-                                  ))}
-                                </div>
+                                {/* ปุ่มสร้าง PM สำหรับเครื่องนี้ */}
+                                <button 
+                                  onClick={() => {
+                                    setCreatePM_equipment(eq.id);
+                                    setCurrentView('pm-create');
+                                  }}
+                                  className="py-2 px-3 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition-colors"
+                                  title="สร้างใบงาน PM สำหรับเครื่องนี้"
+                                >
+                                  + สร้าง PM
+                                </button>
                               </div>
                             </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* มุมมองตาราง (Table View - แก้ไขข้อ 3.1) */
+                      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-gray-400 uppercase font-semibold">
+                                <th className="pb-3">รหัสอุปกรณ์</th>
+                                <th className="pb-3">หมวดหมู่ & ประเภท</th>
+                                <th className="pb-3">ตำแหน่งติดตั้ง</th>
+                                <th className="pb-3">รอบ PM ที่เปิดใช้</th>
+                                <th className="pb-3">ประวัติ PM</th>
+                                <th className="pb-3">สถานะล่าสุด</th>
+                                <th className="pb-3 text-right">การจัดการ</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {filteredActiveEquipments.map(eq => {
+                                const history = pmTasks.filter(t => t.equipment === eq.id);
+                                const lastTask = history.length > 0 ? history[0] : null;
+                                const profile = getProfileForEquipment(eq.id);
+                                const activeCyclesKeys = profile.cycles ? Object.keys(profile.cycles) : [];
 
-                            <div className="mt-5 pt-4 border-t border-gray-100 flex gap-2">
-                              {/* ปุ่มดูประวัติการซ่อมบำรุงย้อนหลัง */}
-                              <button 
-                                onClick={() => setSelectedEquipment(eq.id)}
-                                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
-                              >
-                                <History className="w-3.5 h-3.5 text-gray-500" />
-                                <span>ดูประวัติ ({history.length})</span>
-                              </button>
+                                return (
+                                  <tr key={eq.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="py-3.5 font-bold text-blue-600 text-sm">{eq.id}</td>
+                                    <td className="py-3.5">
+                                      <div className="font-semibold text-gray-900">{eq.category}</div>
+                                      <div className="text-[11px] text-gray-400">{eq.type}</div>
+                                    </td>
+                                    <td className="py-3.5 text-gray-700">{eq.location}</td>
+                                    <td className="py-3.5">
+                                      <div className="flex gap-1">
+                                        {activeCyclesKeys.map(c => (
+                                          <span key={c} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200 text-[10px]">
+                                            {c}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5">
+                                      <span className="font-bold text-gray-900">{history.length}</span> <span className="text-gray-400">ครั้ง</span>
+                                    </td>
+                                    <td className="py-3.5">
+                                      {lastTask ? (
+                                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${getStatusBadgeStyle(lastTask.status)}`}>
+                                          {lastTask.date} ({lastTask.status})
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 text-right">
+                                      <div className="flex items-center justify-end gap-2">
+                                        <button
+                                          onClick={() => setSelectedEquipment(eq.id)}
+                                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                          title="ดูประวัติการซ่อมบำรุง"
+                                        >
+                                          <History className="w-3 h-3 text-gray-500" />
+                                          <span>ประวัติ</span>
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setCreatePM_equipment(eq.id);
+                                            setCurrentView('pm-create');
+                                          }}
+                                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 rounded-lg text-xs font-bold transition-colors"
+                                          title="สร้างใบงาน PM"
+                                        >
+                                          + PM
+                                        </button>
+                                        {userRole === 'manager' && (
+                                          <>
+                                            <button
+                                              onClick={() => handleOpenEditEqModal(eq)}
+                                              className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-600 transition-colors"
+                                              title="แก้ไขข้อมูลอุปกรณ์"
+                                            >
+                                              <Edit className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              onClick={() => {
+                                                setEqToDelete(eq);
+                                                setShowDeleteEqModal(true);
+                                              }}
+                                              className="p-1 hover:bg-rose-50 rounded text-gray-400 hover:text-rose-600 transition-colors"
+                                              title="ยกเลิกใช้งานอุปกรณ์ (Soft Delete)"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
 
-                              {/* ปุ่มสร้าง PM สำหรับเครื่องนี้ */}
-                              <button 
-                                onClick={() => {
-                                  setCreatePM_equipment(eq.id);
-                                  setCurrentView('pm-create');
-                                }}
-                                className="py-2 px-3 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition-colors"
-                                title="สร้างใบงาน PM"
-                              >
-                                + สร้าง PM
-                              </button>
-                            </div>
+                    {/* ส่วนแสดงอุปกรณ์ที่ยกเลิกการใช้งานแล้ว (Archived Assets - Soft Deleted) */}
+                    {archivedEquipments.length > 0 && (
+                      <div className="mt-12 pt-8 border-t-2 border-dashed border-gray-200 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                              <Archive className="w-5 h-5 text-gray-500" />
+                              อุปกรณ์ที่ยกเลิกการใช้งานแล้ว (Archived Assets - {archivedEquipments.length} เครื่อง)
+                            </h3>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              คงประวัติการบำรุงรักษาในอดีตไว้ครบถ้วน (Soft Delete) เพื่อการตรวจสอบย้อนหลัง ไม่สามารถสร้าง PM ใหม่ได้จนกว่าจะกู้คืน
+                            </p>
                           </div>
-                        );
-                      })}
-                  </div>
-                </>
-              ) : (
-                /* หน้ารายละเอียดประวัติการซ่อมบำรุงของอุปกรณ์ที่เลือก */
-                <div className="space-y-6">
-                  <button 
-                    onClick={() => setSelectedEquipment(null)}
-                    className="flex items-center gap-2 text-gray-600 hover:text-black font-semibold text-sm transition-colors"
+                          <button 
+                            type="button"
+                            onClick={() => setShowArchivedSection(prev => !prev)}
+                            className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 self-start sm:self-auto"
+                          >
+                            {showArchivedSection ? "ย่อรายการ" : "ขยายดูรายการ"} ({archivedEquipments.length})
+                          </button>
+                        </div>
+
+                        {showArchivedSection && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {archivedEquipments.map(eq => {
+                              const history = pmTasks.filter(t => t.equipment === eq.id);
+                              return (
+                                <div key={eq.id} className="bg-gray-100/70 rounded-3xl p-5 border border-dashed border-gray-300 flex flex-col justify-between opacity-85 hover:opacity-100 transition-opacity">
+                                  <div>
+                                    <div className="flex justify-between items-start mb-2">
+                                      <span className="text-xs font-bold bg-gray-200 text-gray-700 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                        <Archive className="w-3 h-3 text-gray-500" /> ยกเลิกการใช้งานแล้ว
+                                      </span>
+                                      {userRole === 'manager' && (
+                                        <button
+                                          onClick={() => {
+                                            setEquipmentsList(prev => prev.map(e => e.id === eq.id ? { ...e, isArchived: false } : e));
+                                          }}
+                                          className="text-xs text-emerald-700 hover:underline font-bold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200"
+                                          title="กู้คืนอุปกรณ์ให้กลับมาใช้งาน"
+                                        >
+                                          <RotateCcw className="w-3 h-3" /> กู้คืนอุปกรณ์
+                                        </button>
+                                      )}
+                                    </div>
+                                    <h3 className="font-bold text-gray-700 text-lg">{eq.id}</h3>
+                                    <p className="text-xs text-gray-500">{eq.category} • {eq.location}</p>
+                                    <div className="mt-3 text-xs text-gray-600 bg-white p-2.5 rounded-xl border border-gray-200">
+                                      ประวัติการบำรุงรักษา: <strong>{history.length}</strong> ใบงาน
+                                    </div>
+                                  </div>
+                                  <div className="mt-4 pt-3 border-t border-gray-200">
+                                    <button 
+                                      onClick={() => setSelectedEquipment(eq.id)}
+                                      className="w-full py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                                    >
+                                      <History className="w-3.5 h-3.5 text-gray-500" />
+                                      <span>ดูประวัติการซ่อมบำรุงย้อนหลัง ({history.length})</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* หน้ารายละเอียดประวัติการซ่อมบำรุงของอุปกรณ์ที่เลือก */
+                  <div className="space-y-6">
+                    <button 
+                      onClick={() => setSelectedEquipment(null)}
+                      className="flex items-center gap-2 text-gray-600 hover:text-black font-semibold text-sm transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" /> กลับหน้ารายการอุปกรณ์
                   </button>
@@ -2446,7 +2777,8 @@ export default function App() {
                 </div>
               )}
             </div>
-          )}
+          );
+        })()}
 
 
 
@@ -2543,144 +2875,187 @@ export default function App() {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: ช่างปรับสถานะการทำงาน + เลือกประเมินสุขภาพอุปกรณ์พร้อมคำนิยาม */}
+      {/* MODAL 2: ช่างปรับสถานะการทำงาน (Mobile Slide-up Drawer + Checklist Gate) - แก้ไขข้อ 1.3, 1.4 */}
       {/* ======================================================== */}
-      {showTechSubmitModal && selectedPMTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-gray-200">
-            <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
-                  <Edit className="w-5 h-5 text-blue-600" /> อัปเดตสถานะการทำงาน & สุขภาพอุปกรณ์
-                </h3>
-                <p className="text-xs text-gray-500">ใบงาน: {selectedPMTask.id} • {selectedPMTask.equipment}</p>
-              </div>
-              <button onClick={() => setShowTechSubmitModal(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {showTechSubmitModal && selectedPMTask && (() => {
+        const currentChecklist = getTaskChecklist(selectedPMTask);
+        const completedCount = (selectedPMTask.completedChecklistIds || []).length;
+        const totalCount = currentChecklist.length;
+        const isChecklistComplete = completedCount >= totalCount;
 
-            <div className="p-6 space-y-5">
-              {/* 1. เลือกสถานะการทำงาน (รอดำเนินการ / กำลังดำเนินการ / รออนุมัติ) */}
-              <div>
-                <label className="block text-xs font-bold text-gray-800 mb-2">
-                  1. เลือกสถานะที่ต้องการปรับเปลี่ยน <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: "รอดำเนินการ", label: "รอดำเนินการ", desc: "ยังไม่เริ่มทำ", color: "border-gray-300 text-gray-700 bg-gray-50" },
-                    { id: "กำลังดำเนินการ", label: "กำลังดำเนินการ", desc: "กำลังตรวจเช็ค", color: "border-blue-500 text-blue-800 bg-blue-50" },
-                    { id: "รออนุมัติ", label: "รออนุมัติ", desc: "ส่งตรวจปิดงาน", color: "border-amber-500 text-amber-800 bg-amber-50" }
-                  ].map(st => {
-                    const isSelected = techFormTargetStatus === st.id;
-                    return (
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-200 animate-in slide-in-from-bottom duration-200">
+              {/* Mobile Drag Handle (สำหรับช่างหน้างานใช้งานบนมือถือ) */}
+              <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto my-2.5 sm:hidden" />
+
+              <div className="p-5 sm:p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                    <Edit className="w-5 h-5 text-emerald-600" /> อัปเดตสถานะการทำงาน & สุขภาพอุปกรณ์
+                  </h3>
+                  <p className="text-xs text-gray-500">ใบงาน: {selectedPMTask.id} • {selectedPMTask.equipment}</p>
+                </div>
+                <button onClick={() => setShowTechSubmitModal(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1">
+                {/* 1. เลือกสถานะการทำงาน (รอดำเนินการ / กำลังดำเนินการ / รออนุมัติ) */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-800 mb-2">
+                    1. เลือกสถานะที่ต้องการปรับเปลี่ยน <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: "รอดำเนินการ", label: "รอดำเนินการ", desc: "ยังไม่เริ่มทำ", color: "border-gray-300 text-gray-700 bg-gray-50" },
+                      { id: "กำลังดำเนินการ", label: "กำลังดำเนินการ", desc: "กำลังตรวจเช็ค", color: "border-blue-500 text-blue-800 bg-blue-50" },
+                      { id: "รออนุมัติ", label: "รออนุมัติ", desc: "ส่งตรวจปิดงาน", color: "border-amber-500 text-amber-800 bg-amber-50" }
+                    ].map(st => {
+                      const isSelected = techFormTargetStatus === st.id;
+                      return (
+                        <div 
+                          key={st.id}
+                          onClick={() => setTechFormTargetStatus(st.id)}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer text-center transition-all ${isSelected ? `${st.color} shadow-xs ring-2 ring-blue-500/20 font-bold` : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}
+                        >
+                          <div className="text-xs font-bold">{st.label}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{st.desc}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Checklist Gate Enforcement (แก้ไขข้อ 1.3: ล็อกการส่งงานถ้า Checklist ยังไม่ครบ 100%) */}
+                {techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete && (
+                  <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 text-xs text-rose-900 space-y-2 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-2 font-bold text-rose-800">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      ยังตรวจ Checklist ไม่ครบ ({completedCount}/{totalCount} ข้อ)
+                    </div>
+                    <p className="text-rose-700 leading-relaxed text-[11px]">
+                      ระบบป้องกันข้อผิดพลาด: ช่างต้องทำการตรวจเช็คและทำเครื่องหมาย Checklist ให้ครบทุกข้อก่อนส่งขออนุมัติปิดงาน
+                    </p>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const allIds = currentChecklist.map(i => i.id);
+                        const updatedTask = { ...selectedPMTask, completedChecklistIds: allIds };
+                        setSelectedPMTask(updatedTask);
+                        setPmTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+                      }}
+                      className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-xl shadow-2xs transition-colors flex items-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>ติ๊กครบทุกข้อทันที (เพื่อทดสอบส่งงาน)</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 2. ประเมินสุขภาพอุปกรณ์ (แสดงเฉพาะตอนเลือกสถานะ "รออนุมัติ" เพื่อขออนุมัติปิดงาน) */}
+                {techFormTargetStatus === "รออนุมัติ" ? (
+                  <div className="animate-in fade-in duration-200 bg-amber-50/40 p-4 rounded-2xl border border-amber-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-amber-950">
+                        2. ประเมินสุขภาพอุปกรณ์สำหรับการขออนุมัติปิดงาน <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[11px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">ส่งต่อหัวหน้า</span>
+                    </div>
+                    <p className="text-[11px] text-gray-600 mb-3">ช่างผู้ตรวจหน้างานประเมินสภาพเครื่องจักรเพื่อส่งให้ผู้จัดการพิจารณารับรองงาน</p>
+
+                    <div className="space-y-2.5">
+                      {/* หมวด 1: เรียบร้อย */}
                       <div 
-                        key={st.id}
-                        onClick={() => setTechFormTargetStatus(st.id)}
-                        className={`p-3 rounded-2xl border-2 cursor-pointer text-center transition-all ${isSelected ? `${st.color} shadow-xs ring-2 ring-blue-500/20 font-bold` : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}
+                        onClick={() => setTechFormHealth("เรียบร้อย")}
+                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "เรียบร้อย" ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
                       >
-                        <div className="text-xs font-bold">{st.label}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">{st.desc}</div>
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-emerald-950">1. เรียบร้อย (Completed & Good)</div>
+                          <div className="text-xs text-emerald-800 font-semibold mt-0.5">นิยาม: เครื่องปกติสมบูรณ์ 100%</div>
+                          <p className="text-xs text-gray-500 mt-0.5">ตรวจเช็คตาม Checklist ครบถ้วน ไม่พบเสียง การสั่น หรือความร้อนผิดปกติ พร้อมใช้งานต่อ</p>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* 2. ประเมินสุขภาพอุปกรณ์ (แสดงเฉพาะตอนเลือกสถานะ "รออนุมัติ" เพื่อขออนุมัติปิดงาน) */}
-              {techFormTargetStatus === "รออนุมัติ" ? (
-                <div className="animate-in fade-in duration-200 bg-amber-50/40 p-4 rounded-2xl border border-amber-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-bold text-amber-950">
-                      2. ประเมินสุขภาพอุปกรณ์สำหรับการขออนุมัติปิดงาน <span className="text-red-500">*</span>
-                    </label>
-                    <span className="text-[11px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">ส่งต่อหัวหน้า</span>
-                  </div>
-                  <p className="text-[11px] text-gray-600 mb-3">ช่างผู้ตรวจหน้างานประเมินสภาพเครื่องจักรเพื่อส่งให้ผู้จัดการพิจารณารับรองงาน</p>
+                      {/* หมวด 2: งานติดตาม */}
+                      <div 
+                        onClick={() => setTechFormHealth("งานติดตาม")}
+                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "งานติดตาม" ? "bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                          <Clock className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-amber-950">2. งานติดตาม (Follow-up / Watchlist)</div>
+                          <div className="text-xs text-amber-800 font-semibold mt-0.5">นิยาม: มีจุดเฝ้าระวัง ต้องตรวจซ้ำ</div>
+                          <p className="text-xs text-gray-500 mt-0.5">เครื่องยังทำงานได้ แต่พบสัญญาณเตือน เช่น อุณหภูมิหรือการสั่นเริ่มสูงปริ่มเกณฑ์ ต้องติดตามผล</p>
+                        </div>
+                      </div>
 
-                  <div className="space-y-2.5">
-                    {/* หมวด 1: เรียบร้อย */}
-                    <div 
-                      onClick={() => setTechFormHealth("เรียบร้อย")}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "เรียบร้อย" ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
-                    >
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-emerald-950">1. เรียบร้อย (Completed & Good)</div>
-                        <div className="text-xs text-emerald-800 font-semibold mt-0.5">นิยาม: เครื่องปกติสมบูรณ์ 100%</div>
-                        <p className="text-xs text-gray-500 mt-0.5">ตรวจเช็คตาม Checklist ครบถ้วน ไม่พบเสียง การสั่น หรือความร้อนผิดปกติ พร้อมใช้งานต่อ</p>
-                      </div>
-                    </div>
-
-                    {/* หมวด 2: งานติดตาม */}
-                    <div 
-                      onClick={() => setTechFormHealth("งานติดตาม")}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "งานติดตาม" ? "bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
-                    >
-                      <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                        <Clock className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-amber-950">2. งานติดตาม (Follow-up / Watchlist)</div>
-                        <div className="text-xs text-amber-800 font-semibold mt-0.5">นิยาม: มีจุดเฝ้าระวัง ต้องตรวจซ้ำ</div>
-                        <p className="text-xs text-gray-500 mt-0.5">เครื่องยังทำงานได้ แต่พบสัญญาณเตือน เช่น อุณหภูมิหรือการสั่นเริ่มสูงปริ่มเกณฑ์ ต้องติดตามผล</p>
-                      </div>
-                    </div>
-
-                    {/* หมวด 3: งานซ่อมแซม */}
-                    <div 
-                      onClick={() => setTechFormHealth("งานซ่อมแซม")}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "งานซ่อมแซม" ? "bg-rose-50 border-rose-500 ring-2 ring-rose-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
-                    >
-                      <div className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-rose-950">3. งานซ่อมแซม (Defect / Action Required)</div>
-                        <div className="text-xs text-rose-800 font-semibold mt-0.5">นิยาม: พบจุดชำรุดเสียหาย ต้องเปิดใบงานซ่อมแซม</div>
-                        <p className="text-xs text-gray-500 mt-0.5">พบชิ้นส่วนเสียหายหน้างาน (เช่น ซีลรั่ว สายพานใกล้ขาด ลูกปืนแตก) เกินขอบเขต Routine PM ต้องเปิด PR/WO</p>
+                      {/* หมวด 3: งานซ่อมแซม */}
+                      <div 
+                        onClick={() => setTechFormHealth("งานซ่อมแซม")}
+                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 ${techFormHealth === "งานซ่อมแซม" ? "bg-rose-50 border-rose-500 ring-2 ring-rose-500/20 shadow-xs" : "border-gray-200 bg-white hover:bg-gray-50"}`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-rose-950">3. งานซ่อมแซม (Defect / Action Required)</div>
+                          <div className="text-xs text-rose-800 font-semibold mt-0.5">นิยาม: พบจุดชำรุดเสียหาย ต้องเปิดใบงานซ่อมแซม</div>
+                          <p className="text-xs text-gray-500 mt-0.5">พบชิ้นส่วนเสียหายหน้างาน (เช่น ซีลรั่ว สายพานใกล้ขาด ลูกปืนแตก) เกินขอบเขต Routine PM ต้องเปิด PR/WO</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 text-xs text-gray-500 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-blue-500 shrink-0" />
-                  <span>การประเมินสุขภาพอุปกรณ์จะแสดงและให้ระบุเมื่อปรับสถานะเป็น <strong>"รออนุมัติ"</strong> เพื่อขออนุมัติปิดงาน</span>
-                </div>
-              )}
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 text-xs text-gray-500 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span>การประเมินสุขภาพอุปกรณ์จะแสดงและให้ระบุเมื่อปรับสถานะเป็น <strong>"รออนุมัติ"</strong> เพื่อขออนุมัติปิดงาน</span>
+                  </div>
+                )}
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">บันทึกข้อความหน้างานเพิ่มเติม</label>
-                <textarea 
-                  rows="2"
-                  value={techFormNote}
-                  onChange={(e) => setTechFormNote(e.target.value)}
-                  placeholder="ระบุข้อความสรุปผล หรือ รายละเอียดที่ต้องเฝ้าระวัง/ซ่อมแซม..."
-                  className="w-full p-3 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 resize-none"
-                ></textarea>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">บันทึกข้อความหน้างานเพิ่มเติม</label>
+                  <textarea 
+                    rows="2"
+                    value={techFormNote}
+                    onChange={(e) => setTechFormNote(e.target.value)}
+                    placeholder="ระบุข้อความสรุปผล หรือ รายละเอียดที่ต้องเฝ้าระวัง/ซ่อมแซม..."
+                    className="w-full p-3 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 resize-none"
+                  ></textarea>
+                </div>
               </div>
-            </div>
 
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <button 
-                onClick={() => setShowTechSubmitModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100"
-              >
-                ยกเลิก
-              </button>
-              <button 
-                onClick={handleTechnicianSubmit}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-              >
-                บันทึกการปรับเปลี่ยนสถานะ
-              </button>
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+                <button 
+                  onClick={() => setShowTechSubmitModal(false)}
+                  className="px-4 py-2.5 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                >
+                  ยกเลิก
+                </button>
+                <button 
+                  disabled={techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete}
+                  onClick={handleTechnicianSubmit}
+                  className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                    techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  }`}
+                >
+                  {techFormTargetStatus === "รออนุมัติ" && !isChecklistComplete
+                    ? "กรุณาตรวจ Checklist ให้ครบก่อน"
+                    : "บันทึกการปรับเปลี่ยนสถานะ"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ======================================================== */}
       {/* MODAL 4: มอบหมาย/เปลี่ยนช่างผู้รับผิดชอบ (Manager Quick Reassign Modal) */}
@@ -2838,6 +3213,17 @@ export default function App() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">ประเภทอุปกรณ์ (Equipment Type) <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text"
+                    value={eqFormType}
+                    onChange={(e) => setEqFormType(e.target.value)}
+                    placeholder="เช่น AHU (Air Handling Unit), Water Pump, Generator..."
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
 
               </div>
 
@@ -2969,22 +3355,34 @@ export default function App() {
                     };
                   });
 
+                  const targetId = editingEq ? editingEq.id : eqFormId.toUpperCase().trim();
+                  if (!targetId) return;
+
+                  // บันทึกและอัปเดต Dynamic Profile Registry
+                  dynamicEquipmentProfilesRegistry[targetId] = {
+                    category: eqFormCategory,
+                    type: eqFormType || (eqFormCategory.includes("HVAC") ? "AHU (Air Handling Unit)" : eqFormCategory.includes("Electrical") ? "Generator" : "Water Pump"),
+                    cycles: activeCyclesMap
+                  };
+
                   if (editingEq) {
                     setEquipmentsList(prev => prev.map(e => e.id === editingEq.id ? {
                       ...e,
                       category: eqFormCategory,
+                      type: eqFormType || e.type,
                       location: eqFormLocation,
                       interval: eqFormInterval
                     } : e));
                   } else {
-                    const profileKey = eqFormId.startsWith("AHU") ? "AHU" : eqFormId.startsWith("GEN") ? "Generator" : eqFormId.startsWith("PUMP") ? "Pump" : eqFormId.startsWith("CH") ? "Chiller" : "AHU";
+                    const profileKey = targetId.startsWith("AHU") ? "AHU" : targetId.startsWith("GEN") ? "Generator" : targetId.startsWith("PUMP") ? "Pump" : targetId.startsWith("CH") ? "Chiller" : "AHU";
                     const newEq = {
-                      id: eqFormId.toUpperCase().trim(),
+                      id: targetId,
                       profileKey,
                       category: eqFormCategory,
-                      type: eqFormCategory.includes("HVAC") ? "AHU (Air Handling Unit)" : eqFormCategory.includes("Electrical") ? "Generator" : "Water Pump",
-                      location: eqFormLocation || "ชั้น 1",
-                      interval: eqFormInterval
+                      type: eqFormType || (eqFormCategory.includes("HVAC") ? "AHU (Air Handling Unit)" : eqFormCategory.includes("Electrical") ? "Generator" : "Water Pump"),
+                      location: eqFormLocation || "ชั้น 1 โซนกลาง",
+                      interval: eqFormInterval,
+                      isArchived: false
                     };
                     setEquipmentsList(prev => [newEq, ...prev]);
                   }
@@ -2993,6 +3391,65 @@ export default function App() {
                 className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
               >
                 {editingEq ? "บันทึกการแก้ไขอุปกรณ์" : "บันทึกและสร้างอุปกรณ์ใหม่"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 5: ยืนยันยกเลิกใช้งานอุปกรณ์ (Soft Delete Confirmation) */}
+      {/* ======================================================== */}
+      {showDeleteEqModal && eqToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-gray-200">
+            <div className="p-6 border-b border-gray-100 bg-rose-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">ยกเลิกใช้งานอุปกรณ์ (Soft Delete)</h3>
+                  <p className="text-xs text-rose-700 font-semibold">{eqToDelete.id} • {eqToDelete.category}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowDeleteEqModal(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs text-gray-600 leading-relaxed">
+              <p className="font-bold text-gray-800 text-sm">
+                คุณต้องการยกเลิกการใช้งานอุปกรณ์ "{eqToDelete.id}" ใช่หรือไม่?
+              </p>
+              <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs space-y-1.5">
+                <span className="font-bold flex items-center gap-1.5 text-amber-800">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                  ระบบจะใช้วิธี Soft Delete (เก็บรักษาประวัติย้อนหลัง):
+                </span>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  • ประวัติการบำรุงรักษาในอดีต ({pmTasks.filter(t => t.equipment === eqToDelete.id).length} ใบงาน) จะไม่สูญหาย และสามารถเปิดดูประวัติย้อนหลังได้ตลอดเวลา<br/>
+                  • อุปกรณ์จะถูกย้ายไปอยู่หมวด "อุปกรณ์ที่ยกเลิกใช้งานแล้ว" ท้ายหน้าจอ และไม่สามารถสร้างใบงานใหม่ได้จนกว่าจะกดกู้คืน
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button 
+                onClick={() => setShowDeleteEqModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                ยกเลิก
+              </button>
+              <button 
+                onClick={() => {
+                  setEquipmentsList(prev => prev.map(e => e.id === eqToDelete.id ? { ...e, isArchived: true } : e));
+                  setShowDeleteEqModal(false);
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                ยืนยันยกเลิกใช้งานอุปกรณ์
               </button>
             </div>
           </div>
