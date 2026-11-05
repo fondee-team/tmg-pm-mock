@@ -283,8 +283,8 @@ const initialMockPMTasks = [
     description: 'ตรวจเช็ค Mechanical Seal และอัดจารบีลูกปืน',
     status: 'กำลังดำเนินการ',
     serviceTypeIds: ['pump', 'lubricant', 'electrical'],
-    technicianHealthAssessment: 'งานซ่อมแซม', // ช่างตรวจพบอาการรั่ว
-    technicianNote: 'พบแมคคานิคอลซีลมีน้ำหยดต่อเนื่องเกิน 60 หยด/นาที ปะเก็นเริ่มกรอบ ต้องเปิดใบซ่อม',
+    technicianHealthAssessment: null, // กำลังดำเนินการ ยังไม่มีผลประเมินสุขภาพ
+    technicianNote: 'อยู่ระหว่างตรวจเช็คซีลและอัดจารบีลูกปืน',
     managerReviewNote: '',
     assignees: ['EMP วินัย (ผู้ช่วย)'],
     completedChecklistIds: ['pmp-1m-1', 'pmp-1m-2'],
@@ -292,7 +292,7 @@ const initialMockPMTasks = [
       'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&q=80&w=300&h=200'
     ],
     timeline: [
-      { status: 'กำลังดำเนินการ', date: '11 ก.ค. 69', time: '13:30 น.', user: 'EMP วินัย (ผู้ช่วย)', comment: 'กำลังตรวจพบว่าซีลรั่วซึม และอยู่ระหว่างอัดจารบีจุดที่เหลือ' }
+      { status: 'กำลังดำเนินการ', date: '11 ก.ค. 69', time: '13:30 น.', user: 'EMP วินัย (ผู้ช่วย)', comment: 'เริ่มลงมือตรวจเช็คซีลและอัดจารบี' }
     ]
   },
   {
@@ -304,7 +304,7 @@ const initialMockPMTasks = [
     description: 'ตรวจเช็คระดับน้ำมันหล่อลื่นและแรงดันน้ำยาแอร์ Chiller',
     status: 'รอดำเนินการ',
     serviceTypeIds: ['oil', 'electrical'],
-    technicianHealthAssessment: 'เรียบร้อย',
+    technicianHealthAssessment: null, // รอดำเนินการ ยังไม่ได้เริ่มตรวจ
     technicianNote: '',
     managerReviewNote: '',
     assignees: ['EMP สมหญิง (ช่างไฟ)'],
@@ -342,7 +342,7 @@ const initialMockPMTasks = [
     description: 'ตรวจเช็คตามรอบสัปดาห์/เดือน',
     status: 'รอดำเนินการ',
     serviceTypeIds: ['pump', 'lubricant'],
-    technicianHealthAssessment: 'เรียบร้อย',
+    technicianHealthAssessment: null, // แผนล่วงหน้า ยังไม่ได้ตรวจ
     technicianNote: '',
     managerReviewNote: '',
     assignees: ['EMP วินัย (ผู้ช่วย)'],
@@ -427,6 +427,10 @@ export default function App() {
   // Monthly Filter
   const [monthlyFilterMonth, setMonthlyFilterMonth] = useState('2026-07');
 
+  // สถิติการทำงานของช่างรายวัน (Technician Daily Workload Filter States)
+  const [statsDateFilter, setStatsDateFilter] = useState('2026-07-11'); // 'all' | '2026-07-10' | '2026-07-11' | '2026-07-12'
+  const [statsTechFilter, setStatsTechFilter] = useState('all'); // 'all' | tech.name
+
   // รายการอุปกรณ์ทั้งหมดในห้าง
   const equipmentCatalog = [
     { id: "AHU-01", profileKey: "AHU", category: "ระบบปรับอากาศ (HVAC)", location: "ชั้น B1 โซน A", interval: "รายเดือน" },
@@ -472,23 +476,28 @@ export default function App() {
     setPmTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
   };
 
-  // ช่างส่งงานให้หัวหน้าอนุมัติ
+  // ช่างส่งงานให้หัวหน้าอนุมัติ หรือ ปรับสถานะ
   const handleTechnicianSubmit = () => {
+    const isSubmittingForReview = techFormTargetStatus === 'รออนุมัติ';
+    const updatedHealth = isSubmittingForReview ? techFormHealth : (techFormTargetStatus === 'กำลังดำเนินการ' ? null : selectedPMTask.technicianHealthAssessment);
+
     const updatedTask = {
       ...selectedPMTask,
       status: techFormTargetStatus,
-      technicianHealthAssessment: techFormHealth,
+      technicianHealthAssessment: updatedHealth,
       technicianNote: techFormNote || selectedPMTask.technicianNote,
       workPhotos: selectedPMTask.workPhotos.length > 0 ? selectedPMTask.workPhotos : [
         'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&q=80&w=300&h=200'
       ],
       timeline: [
         {
-          status: 'รออนุมัติ',
+          status: techFormTargetStatus,
           date: '11 ก.ค. 69',
           time: 'ขณะนี้',
           user: selectedPMTask.assignees[0] || 'ช่างเทคนิค',
-          comment: `ส่งผลการตรวจเช็คตาม Checklist ให้หัวหน้าอนุมัติ พร้อมประเมินสุขภาพเครื่องจักร: [${techFormHealth}] - ${techFormNote || 'ตรวจครบถ้วน'}`
+          comment: isSubmittingForReview
+            ? `ส่งผลการตรวจเช็คตาม Checklist ให้หัวหน้าอนุมัติ พร้อมประเมินสุขภาพเครื่องจักร: [${techFormHealth}] - ${techFormNote || 'ตรวจครบถ้วน'}`
+            : `ปรับสถานะเป็น [${techFormTargetStatus}] - ${techFormNote || 'ดำเนินการตรวจเช็ค'}`
         },
         ...selectedPMTask.timeline
       ]
@@ -543,7 +552,7 @@ export default function App() {
       description: `การบำรุงรักษาเชิงป้องกันตามรอบ ${cycleData.cycleLabel}`,
       status: 'รอดำเนินการ',
       serviceTypeIds: cycleData.serviceTypeIds,
-      technicianHealthAssessment: 'เรียบร้อย',
+      technicianHealthAssessment: null,
       technicianNote: '',
       managerReviewNote: '',
       assignees: [createPM_assignee],
@@ -829,9 +838,49 @@ export default function App() {
                 </div>
               )}
 
-              {/* กรณีเลือกมุมมองรายวัน (Kanban): แสดง Accordion รายวันเดิม */}
+              {/* กรณีเลือกมุมมองรายวัน (Kanban): แสดงแถบกรองช่างกะทัดรัด + Accordion รายวัน */}
               {pmViewMode === 'kanban' && (
                 <div className="space-y-6">
+                  {/* แถบกรองช่างกะทัดรัดประจำกระดาน Kanban พร้อมลิงก์ไปดูสถิติฉบับเต็ม */}
+                  <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+                      <span className="text-xs font-bold text-gray-500 shrink-0 flex items-center gap-1.5 pl-1">
+                        <Users className="w-4 h-4 text-blue-600" /> กรองตามช่าง:
+                      </span>
+                      <button 
+                        onClick={() => setSelectedTechFilter("all")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${selectedTechFilter === 'all' ? 'bg-blue-600 text-white shadow-2xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                      >
+                        ทุกคน ({pmTasks.length})
+                      </button>
+                      {techniciansList.map(tech => {
+                        const count = pmTasks.filter(t => t.assignees?.includes(tech.name)).length;
+                        const isSelected = selectedTechFilter === tech.name;
+                        return (
+                          <button 
+                            key={tech.name}
+                            onClick={() => setSelectedTechFilter(isSelected ? "all" : tech.name)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${isSelected ? 'bg-blue-600 text-white shadow-2xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                          >
+                            <span>{tech.name.split(' ')[1]}</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'}`}>{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button 
+                      onClick={() => {
+                        setStatsDateFilter('2026-07-11');
+                        setCurrentView('pm-monthly-summary');
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1.5 shrink-0 hover:underline px-2"
+                    >
+                      <PieChart className="w-3.5 h-3.5" />
+                      ดูสถิติภาระงานช่างรายวันแบบละเอียด &rarr;
+                    </button>
+                  </div>
+
                   {['2026-07-10', '2026-07-11', '2026-07-12'].map((dateKey) => {
                 const isOpen = !!openDateSections[dateKey];
                 const rawDateTasks = pmTasks.filter(t => t.date === dateKey);
@@ -894,64 +943,20 @@ export default function App() {
                     {isOpen && (
                       <div className="p-5 bg-gray-50/60 overflow-x-auto space-y-4">
                         
-                        {/* แถบสรุปภาระงานช่างประจำวัน (Daily Technician Workload Strip) */}
-                        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                            <div className="flex items-center gap-2">
-                              <Users className="w-4 h-4 text-blue-600" />
-                              <span className="text-xs font-bold text-gray-900">สรุปภาระงานช่างประจำวัน (คลิกที่ช่างเพื่อกรองดูเฉพาะงานของคนนั้น):</span>
-                            </div>
-                            {selectedTechFilter !== "all" && (
-                              <button 
-                                onClick={() => setSelectedTechFilter("all")}
-                                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
-                              >
-                                &times; ยกเลิกตัวกรอง (แสดงทุกคน)
-                              </button>
-                            )}
+                        {/* แถบแจ้งเตือนเมื่อกำลังกรองตามช่าง (ถ้ามี) */}
+                        {selectedTechFilter !== "all" && (
+                          <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 px-3.5 py-2 rounded-xl text-xs">
+                            <span className="text-blue-900 font-medium">
+                              กำลังกรองแสดงเฉพาะงานของ <strong className="font-bold">{selectedTechFilter}</strong> ({dateTasks.length} งาน)
+                            </span>
+                            <button 
+                              onClick={() => setSelectedTechFilter("all")} 
+                              className="text-blue-700 font-bold hover:underline"
+                            >
+                              &times; ยกเลิกตัวกรอง
+                            </button>
                           </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {techniciansList.map((tech) => {
-                              const techTasks = rawDateTasks.filter(t => t.assignees?.includes(tech.name));
-                              const doneCount = techTasks.filter(t => t.status === "อนุมัติแล้ว").length;
-                              const inProgCount = techTasks.filter(t => t.status === "กำลังดำเนินการ" || t.status === "รออนุมัติ").length;
-                              const pendingCount = techTasks.filter(t => t.status === "รอดำเนินการ" || t.status === "ส่งกลับแก้ไข").length;
-                              const isSelected = selectedTechFilter === tech.name;
-
-                              return (
-                                <div 
-                                  key={tech.name}
-                                  onClick={() => setSelectedTechFilter(isSelected ? "all" : tech.name)}
-                                  className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${isSelected ? "border-blue-600 bg-blue-50/70 shadow-xs ring-2 ring-blue-500/20" : "border-gray-200 bg-gray-50/50 hover:bg-white hover:border-gray-300"}`}
-                                >
-                                  <div className="flex items-center gap-2.5">
-                                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${tech.color} text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs`}>
-                                      {tech.avatar}
-                                    </div>
-                                    <div>
-                                      <div className="text-xs font-bold text-gray-900">{tech.name}</div>
-                                      <div className="text-[11px] text-gray-500">{tech.role}</div>
-                                    </div>
-                                  </div>
-
-                                  <div className="text-right">
-                                    <div className="text-sm font-extrabold text-gray-900">
-                                      {techTasks.length} <span className="text-[11px] font-normal text-gray-500">งาน</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-0.5">
-                                      <span className="text-blue-700 font-bold">รอ {pendingCount}</span>
-                                      <span>&bull;</span>
-                                      <span className="text-amber-700 font-bold">ทำ {inProgCount}</span>
-                                      <span>&bull;</span>
-                                      <span className="text-emerald-700 font-bold">เสร็จ {doneCount}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 min-w-[1100px]">
                           
                           {/* 1. คอลัมน์: รอดำเนินการ */}
@@ -1059,10 +1064,12 @@ export default function App() {
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadgeStyle(selectedPMTask.status)}`}>
                         {selectedPMTask.status}
                       </span>
-                      {/* แท็กผลประเมินสุขภาพเครื่องจักร */}
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getHealthBadgeStyle(selectedPMTask.technicianHealthAssessment)}`}>
-                        สุขภาพเครื่อง: {selectedPMTask.technicianHealthAssessment}
-                      </span>
+                      {/* แท็กผลประเมินสุขภาพเครื่องจักร (แสดงเฉพาะเมื่อส่งตรวจหรือตรวจเสร็จแล้ว) */}
+                      {selectedPMTask.status !== 'รอดำเนินการ' && selectedPMTask.status !== 'กำลังดำเนินการ' && selectedPMTask.technicianHealthAssessment && (
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getHealthBadgeStyle(selectedPMTask.technicianHealthAssessment)}`}>
+                          สุขภาพเครื่อง: {selectedPMTask.technicianHealthAssessment}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-500 mt-1 font-medium">{selectedPMTask.title}</p>
                   </div>
@@ -1236,9 +1243,15 @@ export default function App() {
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-bold text-gray-700">บันทึกสรุปผลโดยช่าง:</span>
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${getHealthBadgeStyle(selectedPMTask.technicianHealthAssessment)}`}>
-                      ประเมินสุขภาพ: {selectedPMTask.technicianHealthAssessment}
-                    </span>
+                    {selectedPMTask.status !== 'รอดำเนินการ' && selectedPMTask.status !== 'กำลังดำเนินการ' && selectedPMTask.technicianHealthAssessment ? (
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${getHealthBadgeStyle(selectedPMTask.technicianHealthAssessment)}`}>
+                        ประเมินสุขภาพ: {selectedPMTask.technicianHealthAssessment}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-gray-400 italic font-medium">
+                        (รอประเมินเมื่อส่งงาน)
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-600 leading-relaxed mt-1">
                     {selectedPMTask.technicianNote || 'ยังไม่ได้ระบุบันทึกผล'}
@@ -1313,6 +1326,213 @@ export default function App() {
                 </div>
               </div>
 
+              {/* ======================================================== */}
+              {/* ภาระงานและประสิทธิภาพของช่าง (Technician Workload Analytics) */}
+              {/* ======================================================== */}
+              <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 space-y-6">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                      <Users className="w-5 h-5 text-blue-600" />
+                      สถิติภาระงานและการปฏิบัติงานของช่าง (Technician Workload & Performance)
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      วิเคราะห์การรับงานรายวัน ความคืบหน้าของแต่ละคน และผลประเมินสุขภาพอุปกรณ์ที่ช่างส่งตรวจ
+                    </p>
+                  </div>
+
+                  {/* แถบตัวกรองวันที่ & ตัวกรองช่าง */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* ตัวกรองวัน (Date Filter) */}
+                    <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-semibold">
+                      <button 
+                        onClick={() => setStatsDateFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === 'all' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        ทุกวันในเดือน
+                      </button>
+                      <button 
+                        onClick={() => setStatsDateFilter('2026-07-10')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === '2026-07-10' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        10 ก.ค. (เมื่อวาน)
+                      </button>
+                      <button 
+                        onClick={() => setStatsDateFilter('2026-07-11')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === '2026-07-11' ? 'bg-blue-600 text-white shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        11 ก.ค. (วันนี้)
+                      </button>
+                      <button 
+                        onClick={() => setStatsDateFilter('2026-07-12')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === '2026-07-12' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        12 ก.ค. (พรุ่งนี้)
+                      </button>
+                    </div>
+
+                    {/* ตัวกรองช่าง (Technician Filter) */}
+                    <select 
+                      value={statsTechFilter}
+                      onChange={(e) => setStatsTechFilter(e.target.value)}
+                      className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">ช่างทุกคน ({techniciansList.length} คน)</option>
+                      {techniciansList.map(tech => (
+                        <option key={tech.name} value={tech.name}>{tech.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* การ์ดสถิติของช่างแต่ละคน */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  {techniciansList
+                    .filter(tech => statsTechFilter === 'all' || tech.name === statsTechFilter)
+                    .map(tech => {
+                      // งานของช่างตามวันที่เลือก
+                      const assignedTasks = (statsDateFilter === 'all' 
+                        ? pmTasks 
+                        : pmTasks.filter(t => t.date === statsDateFilter)
+                      ).filter(t => t.assignees?.includes(tech.name));
+
+                      const doneCount = assignedTasks.filter(t => t.status === 'อนุมัติแล้ว').length;
+                      const reviewCount = assignedTasks.filter(t => t.status === 'รออนุมัติ').length;
+                      const inProgCount = assignedTasks.filter(t => t.status === 'กำลังดำเนินการ').length;
+                      const pendingCount = assignedTasks.filter(t => t.status === 'รอดำเนินการ').length;
+                      const reworkCount = assignedTasks.filter(t => t.status === 'ส่งกลับแก้ไข').length;
+
+                      const completionRate = assignedTasks.length > 0 
+                        ? Math.round((doneCount / assignedTasks.length) * 100) 
+                        : 0;
+
+                      // ผลประเมินสุขภาพอุปกรณ์ที่ช่างคนนี้ส่งมา (เฉพาะงานที่ส่งตรวจหรือตรวจเสร็จแล้ว)
+                      const evaluatedTasks = assignedTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment);
+                      const healthyCount = evaluatedTasks.filter(t => t.technicianHealthAssessment === 'เรียบร้อย').length;
+                      const watchCount = evaluatedTasks.filter(t => t.technicianHealthAssessment === 'งานติดตาม').length;
+                      const repairCount = evaluatedTasks.filter(t => t.technicianHealthAssessment === 'งานซ่อมแซม').length;
+
+                      return (
+                        <div key={tech.name} className="bg-gray-50/70 border border-gray-200 rounded-2xl p-5 flex flex-col justify-between hover:border-blue-300 transition-all shadow-2xs">
+                          <div className="space-y-4">
+                            {/* ส่วนหัวข้อมูลช่าง */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-11 h-11 rounded-2xl bg-gradient-to-tr ${tech.color} text-white font-extrabold text-sm flex items-center justify-center shadow-xs`}>
+                                  {tech.avatar}
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-gray-900 text-sm">{tech.name}</h4>
+                                  <p className="text-xs text-gray-500">{tech.role}</p>
+                                </div>
+                              </div>
+                              <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full">
+                                {assignedTasks.length} งาน
+                              </span>
+                            </div>
+
+                            {/* แถบ Progress ความคืบหน้า */}
+                            <div>
+                              <div className="flex justify-between items-center text-xs mb-1.5 font-medium">
+                                <span className="text-gray-500">ความสำเร็จของงาน:</span>
+                                <span className="font-bold text-gray-900">{doneCount}/{assignedTasks.length} ({completionRate}%)</span>
+                              </div>
+                              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden flex">
+                                <div style={{ width: `${assignedTasks.length ? (doneCount / assignedTasks.length) * 100 : 0}%` }} className="bg-emerald-500 h-full" title="อนุมัติแล้ว" />
+                                <div style={{ width: `${assignedTasks.length ? (reviewCount / assignedTasks.length) * 100 : 0}%` }} className="bg-amber-500 h-full" title="รออนุมัติ" />
+                                <div style={{ width: `${assignedTasks.length ? (inProgCount / assignedTasks.length) * 100 : 0}%` }} className="bg-blue-500 h-full" title="กำลังดำเนินการ" />
+                                <div style={{ width: `${assignedTasks.length ? (reworkCount / assignedTasks.length) * 100 : 0}%` }} className="bg-rose-500 h-full" title="ส่งกลับแก้ไข" />
+                                <div style={{ width: `${assignedTasks.length ? (pendingCount / assignedTasks.length) * 100 : 0}%` }} className="bg-gray-300 h-full" title="รอดำเนินการ" />
+                              </div>
+                            </div>
+
+                            {/* Badge นับสถานะงาน */}
+                            <div className="grid grid-cols-3 gap-1.5 text-center text-[11px]">
+                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
+                                <div className="text-gray-400">รอดำเนินการ</div>
+                                <div className="font-bold text-gray-700">{pendingCount}</div>
+                              </div>
+                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
+                                <div className="text-blue-500">กำลังทำ</div>
+                                <div className="font-bold text-blue-700">{inProgCount}</div>
+                              </div>
+                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
+                                <div className="text-amber-500">รออนุมัติ</div>
+                                <div className="font-bold text-amber-700">{reviewCount}</div>
+                              </div>
+                              <div className="p-1.5 rounded-xl bg-white border border-gray-200">
+                                <div className="text-rose-500">ส่งกลับ</div>
+                                <div className="font-bold text-rose-700">{reworkCount}</div>
+                              </div>
+                              <div className="p-1.5 rounded-xl bg-white border border-gray-200 col-span-2">
+                                <div className="text-emerald-500">อนุมัติปิดงาน</div>
+                                <div className="font-bold text-emerald-700">{doneCount}</div>
+                              </div>
+                            </div>
+
+                            {/* ผลประเมินสุขภาพอุปกรณ์ที่ช่างตรวจแล้ว */}
+                            <div className="bg-white p-3 rounded-xl border border-gray-200 space-y-1.5">
+                              <span className="text-[11px] font-bold text-gray-600 block">ผลประเมินสุขภาพเครื่องจักรที่ส่งตรวจ:</span>
+                              {evaluatedTasks.length > 0 ? (
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                  <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                                    เรียบร้อย {healthyCount}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                                    ติดตาม {watchCount}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-700 font-bold border border-rose-200">
+                                    ซ่อมแซม {repairCount}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 italic">
+                                  ยังไม่มีงานที่ส่งผลประเมินสุขภาพในวันที่เลือก
+                                </span>
+                              )}
+                            </div>
+
+                            {/* รายการใบงานที่มอบหมาย */}
+                            <div className="space-y-2">
+                              <span className="text-[11px] font-bold text-gray-600 block">ใบงานที่รับผิดชอบ ({assignedTasks.length} รายการ):</span>
+                              {assignedTasks.length === 0 ? (
+                                <div className="text-xs text-gray-400 py-3 text-center bg-white rounded-xl border border-dashed border-gray-200">
+                                  ไม่มีงานที่มอบหมายในวันที่เลือก
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                                  {assignedTasks.map(t => (
+                                    <div 
+                                      key={t.id} 
+                                      onClick={() => { setSelectedPMTask(t); setCurrentView('pm-detail'); }}
+                                      className="p-2.5 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-2xs transition-all cursor-pointer flex items-center justify-between gap-2"
+                                    >
+                                      <div className="truncate">
+                                        <div className="flex items-center gap-1.5 text-xs">
+                                          <span className="font-bold text-blue-600">{t.id}</span>
+                                          <span className="text-gray-400">&bull;</span>
+                                          <span className="font-semibold text-gray-800 truncate">{t.equipment}</span>
+                                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1 rounded">{t.cycle}</span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{t.title}</p>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeStyle(t.status)}`}>
+                                          {t.status}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
               {/* สรุปตามประเภทงาน Service (Service Types Breakdown) */}
               <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
                 <h3 className="font-bold text-gray-900 text-base mb-4 flex items-center gap-2">
@@ -1349,19 +1569,19 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
                     <span className="text-xs font-bold text-emerald-800 block mb-1">1. เรียบร้อย (Good / Normal)</span>
-                    <div className="text-2xl font-bold text-emerald-700">{pmTasks.filter(t => t.technicianHealthAssessment === 'เรียบร้อย').length} รายการ</div>
+                    <div className="text-2xl font-bold text-emerald-700">{pmTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'เรียบร้อย').length} รายการ</div>
                     <p className="text-xs text-gray-500 mt-1">เครื่องจักรทำงานปกติสมบูรณ์ ปิดงานได้</p>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200">
                     <span className="text-xs font-bold text-amber-800 block mb-1">2. งานติดตาม (Watchlist)</span>
-                    <div className="text-2xl font-bold text-amber-700">{pmTasks.filter(t => t.technicianHealthAssessment === 'งานติดตาม').length} รายการ</div>
+                    <div className="text-2xl font-bold text-amber-700">{pmTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'งานติดตาม').length} รายการ</div>
                     <p className="text-xs text-gray-500 mt-1">พบสัญญาณเตือน มีจุดต้องเฝ้าระวังตรวจซ้ำ</p>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200">
                     <span className="text-xs font-bold text-rose-800 block mb-1">3. งานซ่อมแซม (Action Required)</span>
-                    <div className="text-2xl font-bold text-rose-700">{pmTasks.filter(t => t.technicianHealthAssessment === 'งานซ่อมแซม').length} รายการ</div>
+                    <div className="text-2xl font-bold text-rose-700">{pmTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'งานซ่อมแซม').length} รายการ</div>
                     <p className="text-xs text-gray-500 mt-1">ชำรุดจริง ต้องเปิดใบงานซ่อมแซมแก้ไข</p>
                   </div>
                 </div>
@@ -1400,9 +1620,13 @@ export default function App() {
                           </td>
                           <td className="py-3 text-gray-600">{t.assignees.join(', ')}</td>
                           <td className="py-3">
-                            <span className={`px-2 py-0.5 rounded-full font-bold text-xs border ${getHealthBadgeStyle(t.technicianHealthAssessment)}`}>
-                              {t.technicianHealthAssessment}
-                            </span>
+                            {t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment ? (
+                              <span className={`px-2 py-0.5 rounded-full font-bold text-xs border ${getHealthBadgeStyle(t.technicianHealthAssessment)}`}>
+                                {t.technicianHealthAssessment}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
                           </td>
                           <td className="py-3">
                             <span className={`px-2 py-0.5 rounded-full font-bold text-xs border ${getStatusBadgeStyle(t.status)}`}>
@@ -1820,9 +2044,11 @@ export default function App() {
                               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
                                 <span>วันที่: {t.date}</span>
                                 <span>ช่าง: {t.assignees.join(', ')}</span>
-                                <span className={`px-2 py-0.2 rounded-full font-bold border ${getHealthBadgeStyle(t.technicianHealthAssessment)}`}>
-                                  สุขภาพเครื่อง: {t.technicianHealthAssessment}
-                                </span>
+                                {t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment && (
+                                  <span className={`px-2 py-0.2 rounded-full font-bold border ${getHealthBadgeStyle(t.technicianHealthAssessment)}`}>
+                                    สุขภาพเครื่อง: {t.technicianHealthAssessment}
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -2449,9 +2675,11 @@ export default function App() {
             <Edit className="w-2.5 h-2.5 text-gray-400 opacity-0 group-hover/btn:opacity-100" />
           </button>
           
-          <span className={`px-2 py-0.5 rounded-full font-bold border ${getHealthBadgeStyle(task.technicianHealthAssessment)}`}>
-            {task.technicianHealthAssessment}
-          </span>
+          {task.status !== 'รอดำเนินการ' && task.status !== 'กำลังดำเนินการ' && task.technicianHealthAssessment && (
+            <span className={`px-2 py-0.5 rounded-full font-bold border ${getHealthBadgeStyle(task.technicianHealthAssessment)}`}>
+              {task.technicianHealthAssessment}
+            </span>
+          )}
         </div>
       </div>
     );
