@@ -370,7 +370,10 @@ export default function App() {
     { id: "MDB-01", profileKey: "Generator", category: "ระบบไฟฟ้า (Electrical)", type: "MDB (Main Distribution Board)", location: "ชั้น B1 ห้องไฟฟ้า", interval: "รายปี" }
   ]);
   const [searchEq, setSearchEq] = useState("");
-  const [selectedTechFilter, setSelectedTechFilter] = useState("all"); // กรองงานตามช่างในบอร์ด Kanban
+  // Kanban Technician Multi-Select & Search
+  const [selectedKanbanTechs, setSelectedKanbanTechs] = useState([]); // [] = แสดงทุกคน
+  const [isKanbanTechDropdownOpen, setIsKanbanTechDropdownOpen] = useState(false);
+  const [kanbanTechSearch, setKanbanTechSearch] = useState("");
   const [showReassignModal, setShowReassignModal] = useState(false); // Modal มอบหมาย/เปลี่ยนช่าง
   const [taskToReassign, setTaskToReassign] = useState(null);
   const [newAssigneeName, setNewAssigneeName] = useState("EMP สมชาย (ช่างแอร์)");
@@ -424,12 +427,31 @@ export default function App() {
   // Equipment List View State
   const [selectedEquipment, setSelectedEquipment] = useState(null);
 
-  // Monthly Filter
-  const [monthlyFilterMonth, setMonthlyFilterMonth] = useState('2026-07');
+  // สถิติ: ตัวกรองช่วงเวลา (รายเดือน vs รายวัน พร้อม Picker) และตัวกรองช่าง Multi-Select
+  const [statsTimeMode, setStatsTimeMode] = useState('daily'); // 'daily' | 'monthly'
+  const [statsMonth, setStatsMonth] = useState('2026-07'); // Default July 2026
+  const [statsDate, setStatsDate] = useState('2026-07-11'); // Default 11 ก.ค. 2569 (วันนี้)
+  const [selectedStatsTechs, setSelectedStatsTechs] = useState([]); // [] = ช่างทุกคน
+  const [isStatsTechDropdownOpen, setIsStatsTechDropdownOpen] = useState(false);
+  const [statsTechSearch, setStatsTechSearch] = useState("");
 
-  // สถิติการทำงานของช่างรายวัน (Technician Daily Workload Filter States)
-  const [statsDateFilter, setStatsDateFilter] = useState('2026-07-11'); // 'all' | '2026-07-10' | '2026-07-11' | '2026-07-12'
-  const [statsTechFilter, setStatsTechFilter] = useState('all'); // 'all' | tech.name
+  // Data สำหรับหน้าสถิติที่ผ่านการกรอง (มีผลต่อทุก Section ในหน้าสถิติตาม UX ที่ขอ)
+  const filteredStatsTasks = pmTasks.filter(task => {
+    // 1. กรองตามช่วงเวลา (รายเดือน หรือ รายวัน)
+    if (statsTimeMode === 'monthly') {
+      if (!task.date.startsWith(statsMonth)) return false;
+    } else {
+      if (task.date !== statsDate) return false;
+    }
+
+    // 2. กรองตามช่าง (Multi-Select)
+    if (selectedStatsTechs.length > 0) {
+      const isAssigned = task.assignees?.some(a => selectedStatsTechs.includes(a));
+      if (!isAssigned) return false;
+    }
+
+    return true;
+  });
 
   // รายการอุปกรณ์ทั้งหมดในห้าง
   const equipmentCatalog = [
@@ -841,37 +863,166 @@ export default function App() {
               {/* กรณีเลือกมุมมองรายวัน (Kanban): แสดงแถบกรองช่างกะทัดรัด + Accordion รายวัน */}
               {pmViewMode === 'kanban' && (
                 <div className="space-y-6">
-                  {/* แถบกรองช่างกะทัดรัดประจำกระดาน Kanban พร้อมลิงก์ไปดูสถิติฉบับเต็ม */}
-                  <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+                  {/* แถบกรองช่าง Searchable Multi-Select ประจำกระดาน Kanban พร้อมลิงก์ไปดูสถิติฉบับเต็ม */}
+                  <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-20">
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <span className="text-xs font-bold text-gray-500 shrink-0 flex items-center gap-1.5 pl-1">
-                        <Users className="w-4 h-4 text-blue-600" /> กรองตามช่าง:
+                        <Users className="w-4 h-4 text-blue-600" /> ช่างผู้รับผิดชอบ:
                       </span>
-                      <button 
-                        onClick={() => setSelectedTechFilter("all")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${selectedTechFilter === 'all' ? 'bg-blue-600 text-white shadow-2xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                      >
-                        ทุกคน ({pmTasks.length})
-                      </button>
-                      {techniciansList.map(tech => {
-                        const count = pmTasks.filter(t => t.assignees?.includes(tech.name)).length;
-                        const isSelected = selectedTechFilter === tech.name;
-                        return (
-                          <button 
-                            key={tech.name}
-                            onClick={() => setSelectedTechFilter(isSelected ? "all" : tech.name)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${isSelected ? 'bg-blue-600 text-white shadow-2xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+
+                      {/* Dropdown Multi-Select with Search */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsKanbanTechDropdownOpen(prev => !prev)}
+                          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs ${selectedKanbanTechs.length > 0 ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'}`}
+                        >
+                          <Search className="w-3.5 h-3.5 text-gray-400" />
+                          <span>
+                            {selectedKanbanTechs.length === 0 
+                              ? `ช่างทุกคน (${techniciansList.length} คน)` 
+                              : selectedKanbanTechs.length === 1 
+                                ? selectedKanbanTechs[0].split(' ')[1] 
+                                : `เลือก ${selectedKanbanTechs.length} คน`}
+                          </span>
+                          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isKanbanTechDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Dropdown Popover */}
+                        {isKanbanTechDropdownOpen && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={() => setIsKanbanTechDropdownOpen(false)} 
+                            />
+                            <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 p-3 space-y-2.5 animate-in fade-in duration-150">
+                              {/* Search Input */}
+                              <div className="relative">
+                                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                                <input
+                                  type="text"
+                                  value={kanbanTechSearch}
+                                  onChange={(e) => setKanbanTechSearch(e.target.value)}
+                                  placeholder="ค้นหาชื่อ หรือตำแหน่งช่าง..."
+                                  className="w-full pl-8 pr-7 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                                  autoFocus
+                                />
+                                {kanbanTechSearch && (
+                                  <button 
+                                    onClick={() => setKanbanTechSearch('')} 
+                                    className="absolute right-2 top-2 text-gray-400 hover:text-gray-600 text-xs"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center justify-between text-[11px] px-1 pb-1 border-b border-gray-100">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedKanbanTechs(techniciansList.map(t => t.name))}
+                                  className="text-blue-600 hover:underline font-bold"
+                                >
+                                  เลือกทั้งหมด ({techniciansList.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedKanbanTechs([])}
+                                  className="text-gray-500 hover:text-gray-700"
+                                >
+                                  ล้างค่า (แสดงทุกคน)
+                                </button>
+                              </div>
+
+                              {/* Checkbox List */}
+                              <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                                {techniciansList
+                                  .filter(t => t.name.toLowerCase().includes(kanbanTechSearch.toLowerCase()) || t.role.toLowerCase().includes(kanbanTechSearch.toLowerCase()))
+                                  .map(tech => {
+                                    const isChecked = selectedKanbanTechs.includes(tech.name);
+                                    const count = pmTasks.filter(t => t.assignees?.includes(tech.name)).length;
+                                    return (
+                                      <div
+                                        key={tech.name}
+                                        onClick={() => {
+                                          if (isChecked) {
+                                            setSelectedKanbanTechs(selectedKanbanTechs.filter(n => n !== tech.name));
+                                          } else {
+                                            setSelectedKanbanTechs([...selectedKanbanTechs, tech.name]);
+                                          }
+                                        }}
+                                        className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-blue-50/80 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'}`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            readOnly
+                                            className="rounded text-blue-600 pointer-events-none w-3.5 h-3.5"
+                                          />
+                                          <div className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${tech.color} text-white font-bold text-[10px] flex items-center justify-center`}>
+                                            {tech.avatar}
+                                          </div>
+                                          <div>
+                                            <div className="text-xs font-bold text-gray-900">{tech.name}</div>
+                                            <div className="text-[10px] text-gray-500">{tech.role}</div>
+                                          </div>
+                                        </div>
+                                        <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">
+                                          {count} งาน
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+
+                              <div className="pt-2 border-t border-gray-100 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsKanbanTechDropdownOpen(false)}
+                                  className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700"
+                                >
+                                  ตกลง
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Quick Chips of Selected Technicians */}
+                      {selectedKanbanTechs.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {selectedKanbanTechs.map(name => (
+                            <span 
+                              key={name}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-100 text-blue-800 text-xs font-bold border border-blue-200"
+                            >
+                              {name.split(' ')[1]}
+                              <button 
+                                onClick={() => setSelectedKanbanTechs(selectedKanbanTechs.filter(n => n !== name))}
+                                className="hover:text-blue-950 font-bold ml-0.5"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                          <button
+                            onClick={() => setSelectedKanbanTechs([])}
+                            className="text-xs text-gray-500 hover:text-gray-700 underline ml-1"
                           >
-                            <span>{tech.name.split(' ')[1]}</span>
-                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'}`}>{count}</span>
+                            ล้างทั้งหมด
                           </button>
-                        );
-                      })}
+                        </div>
+                      )}
                     </div>
 
                     <button 
                       onClick={() => {
-                        setStatsDateFilter('2026-07-11');
+                        setStatsTimeMode('daily');
+                        setStatsDate('2026-07-11');
+                        setSelectedStatsTechs(selectedKanbanTechs);
                         setCurrentView('pm-monthly-summary');
                       }}
                       className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1.5 shrink-0 hover:underline px-2"
@@ -882,12 +1033,12 @@ export default function App() {
                   </div>
 
                   {['2026-07-10', '2026-07-11', '2026-07-12'].map((dateKey) => {
-                const isOpen = !!openDateSections[dateKey];
-                const rawDateTasks = pmTasks.filter(t => t.date === dateKey);
-                // กรองตามช่างที่เลือกจากแถบภาระงาน (ถ้ามี)
-                const dateTasks = selectedTechFilter === "all" 
-                  ? rawDateTasks 
-                  : rawDateTasks.filter(t => t.assignees?.includes(selectedTechFilter));
+                    const isOpen = !!openDateSections[dateKey];
+                    const rawDateTasks = pmTasks.filter(t => t.date === dateKey);
+                    // กรองตามช่างที่เลือก (Multi-Select)
+                    const dateTasks = selectedKanbanTechs.length === 0 
+                      ? rawDateTasks 
+                      : rawDateTasks.filter(t => t.assignees?.some(a => selectedKanbanTechs.includes(a)));
                 const isToday = dateKey === '2026-07-11';
                 const isPast = dateKey === '2026-07-10';
                 const isFuture = dateKey === '2026-07-12';
@@ -943,17 +1094,17 @@ export default function App() {
                     {isOpen && (
                       <div className="p-5 bg-gray-50/60 overflow-x-auto space-y-4">
                         
-                        {/* แถบแจ้งเตือนเมื่อกำลังกรองตามช่าง (ถ้ามี) */}
-                        {selectedTechFilter !== "all" && (
+                        {/* แถบแจ้งเตือนเมื่อกำลังกรองตามช่าง (Multi-Select) */}
+                        {selectedKanbanTechs.length > 0 && (
                           <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 px-3.5 py-2 rounded-xl text-xs">
                             <span className="text-blue-900 font-medium">
-                              กำลังกรองแสดงเฉพาะงานของ <strong className="font-bold">{selectedTechFilter}</strong> ({dateTasks.length} งาน)
+                              กำลังกรองแสดงงานของช่าง ({selectedKanbanTechs.length} คน): <strong className="font-bold">{selectedKanbanTechs.map(s => s.split(' ')[1]).join(', ')}</strong> ({dateTasks.length} งาน)
                             </span>
                             <button 
-                              onClick={() => setSelectedTechFilter("all")} 
+                              onClick={() => setSelectedKanbanTechs([])} 
                               className="text-blue-700 font-bold hover:underline"
                             >
-                              &times; ยกเลิกตัวกรอง
+                              &times; ล้างตัวกรองช่าง (แสดงทุกคน)
                             </button>
                           </div>
                         )}
@@ -1286,43 +1437,278 @@ export default function App() {
           {/* ======================================================== */}
           {currentView === 'pm-monthly-summary' && (
             <div className="space-y-6 max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">สถิติและผลการดำเนินงานบำรุงรักษาเชิงป้องกัน (PM Analytics)</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    สถิติสรุปภาพรวมว่าในรอบเดือนได้ทำการซ่อมบำรุงอุปกรณ์ใดไปบ้าง และทำประเภทงาน Service ใดไปแล้วบ้าง
-                  </p>
+              {/* Header Title */}
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">สถิติและผลการดำเนินงานบำรุงรักษาเชิงป้องกัน (PM Analytics)</h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  วิเคราะห์ผลการปฏิบัติงานตามช่วงเวลา และผลการตรวจประเมินสุขภาพอุปกรณ์ของทีมช่าง
+                </p>
+              </div>
+
+              {/* ======================================================== */}
+              {/* GLOBAL FILTER BAR (วางเหนือ 4 KPI Cards ตามสั่ง) */}
+              {/* ======================================================== */}
+              <div className="bg-white p-4 rounded-3xl border border-gray-200 shadow-sm space-y-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  {/* ฝั่งซ้าย: สลับมุมมอง รายเดือน vs รายวัน พร้อม Picker */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Toggle Mode Buttons */}
+                    <div className="bg-gray-100 p-1 rounded-2xl flex items-center text-xs font-bold border border-gray-200">
+                      <button
+                        onClick={() => setStatsTimeMode('monthly')}
+                        className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${statsTimeMode === 'monthly' ? 'bg-blue-600 text-white shadow-2xs font-extrabold' : 'text-gray-600 hover:text-gray-900'}`}
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                        มุมมองรายเดือน
+                      </button>
+                      <button
+                        onClick={() => setStatsTimeMode('daily')}
+                        className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${statsTimeMode === 'daily' ? 'bg-black text-white shadow-2xs font-extrabold' : 'text-gray-600 hover:text-gray-900'}`}
+                      >
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        มุมมองรายวัน
+                      </button>
+                    </div>
+
+                    {/* แสดง Picker ตาม Mode */}
+                    {statsTimeMode === 'monthly' ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Month Picker Input */}
+                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-xl text-xs">
+                          <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                          <span className="font-bold text-gray-600">เลือกเดือน:</span>
+                          <input 
+                            type="month"
+                            value={statsMonth}
+                            onChange={(e) => setStatsMonth(e.target.value)}
+                            className="bg-transparent font-bold text-gray-800 outline-none cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Quick Month Shortcuts */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <button
+                            onClick={() => setStatsMonth('2026-07')}
+                            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${statsMonth === '2026-07' ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            ก.ค. 69 (เดือนนี้)
+                          </button>
+                          <button
+                            onClick={() => setStatsMonth('2026-06')}
+                            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${statsMonth === '2026-06' ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            มิ.ย. 69
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Date Picker Input */}
+                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-300 px-3 py-1.5 rounded-xl text-xs">
+                          <Clock className="w-3.5 h-3.5 text-blue-600" />
+                          <span className="font-bold text-gray-600">เลือกวันที่:</span>
+                          <input 
+                            type="date"
+                            value={statsDate}
+                            onChange={(e) => setStatsDate(e.target.value)}
+                            className="bg-transparent font-bold text-gray-800 outline-none cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Quick Date Pills */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <button
+                            onClick={() => setStatsDate('2026-07-10')}
+                            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${statsDate === '2026-07-10' ? 'bg-gray-950 border-gray-950 text-white font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            10 ก.ค. (เมื่อวาน)
+                          </button>
+                          <button
+                            onClick={() => setStatsDate('2026-07-11')}
+                            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${statsDate === '2026-07-11' ? 'bg-blue-600 border-blue-600 text-white font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            11 ก.ค. (วันนี้)
+                          </button>
+                          <button
+                            onClick={() => setStatsDate('2026-07-12')}
+                            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${statsDate === '2026-07-12' ? 'bg-purple-600 border-purple-600 text-white font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            12 ก.ค. (พรุ่งนี้)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ฝั่งขวา: SEARCHABLE MULTI-SELECT DROPDOWN สำหรับเลือกช่าง */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsStatsTechDropdownOpen(prev => !prev)}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border shadow-2xs ${selectedStatsTechs.length > 0 ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      <Users className="w-4 h-4 text-blue-600" />
+                      <span>
+                        {selectedStatsTechs.length === 0 
+                          ? `ช่างทุกคน (${techniciansList.length} คน)` 
+                          : selectedStatsTechs.length === 1 
+                            ? selectedStatsTechs[0].split(' ')[1] 
+                            : `เลือกช่าง ${selectedStatsTechs.length} คน`}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isStatsTechDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Dropdown Popover */}
+                    {isStatsTechDropdownOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setIsStatsTechDropdownOpen(false)} 
+                        />
+                        <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 p-3 space-y-2.5 animate-in fade-in duration-150">
+                          {/* Search Input */}
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                            <input
+                              type="text"
+                              value={statsTechSearch}
+                              onChange={(e) => setStatsTechSearch(e.target.value)}
+                              placeholder="ค้นหาชื่อ หรือตำแหน่งช่าง..."
+                              className="w-full pl-8 pr-7 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                              autoFocus
+                            />
+                            {statsTechSearch && (
+                              <button 
+                                onClick={() => setStatsTechSearch('')} 
+                                className="absolute right-2 top-2 text-gray-400 hover:text-gray-600 text-xs"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Quick Actions */}
+                          <div className="flex items-center justify-between text-[11px] px-1 pb-1 border-b border-gray-100">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStatsTechs(techniciansList.map(t => t.name))}
+                              className="text-blue-600 hover:underline font-bold"
+                            >
+                              เลือกทั้งหมด ({techniciansList.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStatsTechs([])}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              ล้างค่า (แสดงทุกคน)
+                            </button>
+                          </div>
+
+                          {/* Checkbox List */}
+                          <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
+                            {techniciansList
+                              .filter(t => t.name.toLowerCase().includes(statsTechSearch.toLowerCase()) || t.role.toLowerCase().includes(statsTechSearch.toLowerCase()))
+                              .map(tech => {
+                                const isChecked = selectedStatsTechs.includes(tech.name);
+                                const count = pmTasks.filter(t => t.assignees?.includes(tech.name)).length;
+                                return (
+                                  <div
+                                    key={tech.name}
+                                    onClick={() => {
+                                      if (isChecked) {
+                                        setSelectedStatsTechs(selectedStatsTechs.filter(n => n !== tech.name));
+                                      } else {
+                                        setSelectedStatsTechs([...selectedStatsTechs, tech.name]);
+                                      }
+                                    }}
+                                    className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-colors ${isChecked ? 'bg-blue-50/80 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        readOnly
+                                        className="rounded text-blue-600 pointer-events-none w-3.5 h-3.5"
+                                      />
+                                      <div className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${tech.color} text-white font-bold text-[10px] flex items-center justify-center`}>
+                                        {tech.avatar}
+                                      </div>
+                                      <div>
+                                        <div className="text-xs font-bold text-gray-900">{tech.name}</div>
+                                        <div className="text-[10px] text-gray-500">{tech.role}</div>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">
+                                      {count} งาน
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+
+                          <div className="pt-2 border-t border-gray-100 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setIsStatsTechDropdownOpen(false)}
+                              className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700"
+                            >
+                              ตกลง
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <select 
-                    value={monthlyFilterMonth} 
-                    onChange={(e) => setMonthlyFilterMonth(e.target.value)}
-                    className="px-4 py-2 bg-white rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 shadow-xs focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="2026-07">กรกฎาคม 2569 (เดือนปัจจุบัน)</option>
-                    <option value="2026-06">มิถุนายน 2569</option>
-                    <option value="2026-05">พฤษภาคม 2569</option>
-                  </select>
+
+                {/* แถบสรุปตัวกรองที่กำลังใช้งาน (Active Filters Status Bar) */}
+                <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-gray-600">
+                    <span className="font-semibold text-gray-500">ผลสถิติที่แสดง:</span>
+                    <span className="px-2.5 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                      {statsTimeMode === 'monthly' ? `ประจำเดือน ${statsMonth}` : `ประจำวันที่ ${statsDate}`}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-purple-700 font-bold border border-purple-200">
+                      ช่าง: {selectedStatsTechs.length === 0 ? `ทุกคน (${techniciansList.length} คน)` : `${selectedStatsTechs.length} คน (${selectedStatsTechs.map(t => t.split(' ')[1]).join(', ')})`}
+                    </span>
+                    <span className="text-gray-400">&bull;</span>
+                    <span className="text-gray-700 font-medium">พบทั้งหมด <strong className="font-bold text-gray-900">{filteredStatsTasks.length}</strong> ใบงาน</span>
+                  </div>
+
+                  {(selectedStatsTechs.length > 0 || statsTimeMode !== 'daily' || statsDate !== '2026-07-11') && (
+                    <button
+                      onClick={() => {
+                        setStatsTimeMode('daily');
+                        setStatsDate('2026-07-11');
+                        setStatsMonth('2026-07');
+                        setSelectedStatsTechs([]);
+                      }}
+                      className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 hover:underline"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> รีเซ็ตตัวกรองทั้งหมด
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* KPI Cards สรุปรายเดือน */}
+              {/* 4 KPI Cards สรุปตัวเลข (ผูกกับ filteredStatsTasks ทั้งหมด) */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
                   <span className="text-xs font-semibold text-gray-500 block mb-1">งาน PM ตามแผนทั้งหมด</span>
-                  <div className="text-3xl font-bold text-gray-900">{pmTasks.length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
+                  <div className="text-3xl font-bold text-gray-900">{filteredStatsTasks.length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
                   <span className="text-xs font-semibold text-emerald-600 block mb-1">อนุมัติปิดงานแล้ว</span>
-                  <div className="text-3xl font-bold text-emerald-600">{pmTasks.filter(t => t.status === 'อนุมัติแล้ว').length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
+                  <div className="text-3xl font-bold text-emerald-600">{filteredStatsTasks.filter(t => t.status === 'อนุมัติแล้ว').length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
                   <span className="text-xs font-semibold text-amber-600 block mb-1">รอหัวหน้าอนุมัติ</span>
-                  <div className="text-3xl font-bold text-amber-600">{pmTasks.filter(t => t.status === 'รออนุมัติ').length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
+                  <div className="text-3xl font-bold text-amber-600">{filteredStatsTasks.filter(t => t.status === 'รออนุมัติ').length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
                   <span className="text-xs font-semibold text-rose-600 block mb-1">ส่งกลับแก้ไข / เฝ้าระวัง</span>
-                  <div className="text-3xl font-bold text-rose-600">{pmTasks.filter(t => t.status === 'ส่งกลับแก้ไข').length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
+                  <div className="text-3xl font-bold text-rose-600">{filteredStatsTasks.filter(t => t.status === 'ส่งกลับแก้ไข').length} <span className="text-xs font-normal text-gray-400">ใบงาน</span></div>
                 </div>
               </div>
 
@@ -1330,71 +1716,27 @@ export default function App() {
               {/* ภาระงานและประสิทธิภาพของช่าง (Technician Workload Analytics) */}
               {/* ======================================================== */}
               <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 space-y-6">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
                   <div>
                     <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
                       <Users className="w-5 h-5 text-blue-600" />
-                      สถิติภาระงานและการปฏิบัติงานของช่าง (Technician Workload & Performance)
+                      ภาระงานและผลการปฏิบัติงานของช่าง ({statsTimeMode === 'monthly' ? `ประจำเดือน ${statsMonth}` : `ประจำวันที่ ${statsDate}`})
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">
-                      วิเคราะห์การรับงานรายวัน ความคืบหน้าของแต่ละคน และผลประเมินสุขภาพอุปกรณ์ที่ช่างส่งตรวจ
+                      สรุปความคืบหน้าของแต่ละคน และผลประเมินสุขภาพอุปกรณ์ที่ช่างส่งตรวจ
                     </p>
                   </div>
-
-                  {/* แถบตัวกรองวันที่ & ตัวกรองช่าง */}
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    {/* ตัวกรองวัน (Date Filter) */}
-                    <div className="flex items-center bg-gray-100 p-1 rounded-xl text-xs font-semibold">
-                      <button 
-                        onClick={() => setStatsDateFilter('all')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === 'all' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
-                      >
-                        ทุกวันในเดือน
-                      </button>
-                      <button 
-                        onClick={() => setStatsDateFilter('2026-07-10')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === '2026-07-10' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
-                      >
-                        10 ก.ค. (เมื่อวาน)
-                      </button>
-                      <button 
-                        onClick={() => setStatsDateFilter('2026-07-11')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === '2026-07-11' ? 'bg-blue-600 text-white shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
-                      >
-                        11 ก.ค. (วันนี้)
-                      </button>
-                      <button 
-                        onClick={() => setStatsDateFilter('2026-07-12')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${statsDateFilter === '2026-07-12' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-500 hover:text-gray-900'}`}
-                      >
-                        12 ก.ค. (พรุ่งนี้)
-                      </button>
-                    </div>
-
-                    {/* ตัวกรองช่าง (Technician Filter) */}
-                    <select 
-                      value={statsTechFilter}
-                      onChange={(e) => setStatsTechFilter(e.target.value)}
-                      className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="all">ช่างทุกคน ({techniciansList.length} คน)</option>
-                      {techniciansList.map(tech => (
-                        <option key={tech.name} value={tech.name}>{tech.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <span className="text-xs font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-xl border border-gray-200">
+                    แสดง {techniciansList.filter(tech => selectedStatsTechs.length === 0 || selectedStatsTechs.includes(tech.name)).length} คน
+                  </span>
                 </div>
 
                 {/* การ์ดสถิติของช่างแต่ละคน */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                   {techniciansList
-                    .filter(tech => statsTechFilter === 'all' || tech.name === statsTechFilter)
+                    .filter(tech => selectedStatsTechs.length === 0 || selectedStatsTechs.includes(tech.name))
                     .map(tech => {
-                      // งานของช่างตามวันที่เลือก
-                      const assignedTasks = (statsDateFilter === 'all' 
-                        ? pmTasks 
-                        : pmTasks.filter(t => t.date === statsDateFilter)
-                      ).filter(t => t.assignees?.includes(tech.name));
+                      const assignedTasks = filteredStatsTasks.filter(t => t.assignees?.includes(tech.name));
 
                       const doneCount = assignedTasks.filter(t => t.status === 'อนุมัติแล้ว').length;
                       const reviewCount = assignedTasks.filter(t => t.status === 'รออนุมัติ').length;
@@ -1487,7 +1829,7 @@ export default function App() {
                                 </div>
                               ) : (
                                 <span className="text-[11px] text-gray-400 italic">
-                                  ยังไม่มีงานที่ส่งผลประเมินสุขภาพในวันที่เลือก
+                                  ยังไม่มีงานที่ส่งผลประเมินสุขภาพในตัวกรองนี้
                                 </span>
                               )}
                             </div>
@@ -1497,7 +1839,7 @@ export default function App() {
                               <span className="text-[11px] font-bold text-gray-600 block">ใบงานที่รับผิดชอบ ({assignedTasks.length} รายการ):</span>
                               {assignedTasks.length === 0 ? (
                                 <div className="text-xs text-gray-400 py-3 text-center bg-white rounded-xl border border-dashed border-gray-200">
-                                  ไม่มีงานที่มอบหมายในวันที่เลือก
+                                  ไม่มีงานที่มอบหมายตามตัวกรองนี้
                                 </div>
                               ) : (
                                 <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
@@ -1543,8 +1885,8 @@ export default function App() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {Object.values(SERVICE_TYPES_CONFIG).map(st => {
                     const StIcon = st.icon;
-                    // นับจำนวนใบงานที่ครอบคลุมประเภทงานนี้
-                    const countTasks = pmTasks.filter(t => t.serviceTypeIds.includes(st.id)).length;
+                    // นับจำนวนใบงานตามตัวกรองที่ครอบคลุมประเภทงานนี้
+                    const countTasks = filteredStatsTasks.filter(t => t.serviceTypeIds.includes(st.id)).length;
                     return (
                       <div key={st.id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50/50 flex items-center gap-3">
                         <div className={`p-3 rounded-xl border ${st.color}`}>
@@ -1564,32 +1906,34 @@ export default function App() {
               <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
                 <h3 className="font-bold text-gray-900 text-base mb-3 flex items-center gap-2">
                   <Award className="w-5 h-5 text-emerald-600" />
-                  ผลประเมินสุขภาพเครื่องจักรจากการตรวจ PM ในเดือนนี้
+                  ผลประเมินสุขภาพเครื่องจักรจากการตรวจ PM ตามตัวกรองที่เลือก
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
                     <span className="text-xs font-bold text-emerald-800 block mb-1">1. เรียบร้อย (Good / Normal)</span>
-                    <div className="text-2xl font-bold text-emerald-700">{pmTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'เรียบร้อย').length} รายการ</div>
+                    <div className="text-2xl font-bold text-emerald-700">{filteredStatsTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'เรียบร้อย').length} รายการ</div>
                     <p className="text-xs text-gray-500 mt-1">เครื่องจักรทำงานปกติสมบูรณ์ ปิดงานได้</p>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200">
                     <span className="text-xs font-bold text-amber-800 block mb-1">2. งานติดตาม (Watchlist)</span>
-                    <div className="text-2xl font-bold text-amber-700">{pmTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'งานติดตาม').length} รายการ</div>
+                    <div className="text-2xl font-bold text-amber-700">{filteredStatsTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'งานติดตาม').length} รายการ</div>
                     <p className="text-xs text-gray-500 mt-1">พบสัญญาณเตือน มีจุดต้องเฝ้าระวังตรวจซ้ำ</p>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200">
                     <span className="text-xs font-bold text-rose-800 block mb-1">3. งานซ่อมแซม (Action Required)</span>
-                    <div className="text-2xl font-bold text-rose-700">{pmTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'งานซ่อมแซม').length} รายการ</div>
+                    <div className="text-2xl font-bold text-rose-700">{filteredStatsTasks.filter(t => t.status !== 'รอดำเนินการ' && t.status !== 'กำลังดำเนินการ' && t.technicianHealthAssessment === 'งานซ่อมแซม').length} รายการ</div>
                     <p className="text-xs text-gray-500 mt-1">ชำรุดจริง ต้องเปิดใบงานซ่อมแซมแก้ไข</p>
                   </div>
                 </div>
               </div>
 
-              {/* ตารางแสดงรายละเอียดใบงานทั้งหมดประจำเดือน */}
+              {/* ตารางแสดงรายละเอียดใบงานทั้งหมดตามตัวกรอง */}
               <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 overflow-hidden">
-                <h3 className="font-bold text-gray-900 text-base mb-4">ตารางงานที่ปฏิบัติการไปในเดือน กรกฎาคม 2569</h3>
+                <h3 className="font-bold text-gray-900 text-base mb-4">
+                  ตารางงานตามตัวกรองที่เลือก ({statsTimeMode === 'monthly' ? `ประจำเดือน ${statsMonth}` : `ประจำวันที่ ${statsDate}`})
+                </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
@@ -1604,7 +1948,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {pmTasks.map(t => (
+                      {filteredStatsTasks.map(t => (
                         <tr key={t.id} onClick={() => { setSelectedPMTask(t); setCurrentView('pm-detail'); }} className="hover:bg-gray-50 cursor-pointer">
                           <td className="py-3 font-bold text-blue-600">{t.id}</td>
                           <td className="py-3 text-gray-500">{t.date}</td>
@@ -1635,6 +1979,13 @@ export default function App() {
                           </td>
                         </tr>
                       ))}
+                      {filteredStatsTasks.length === 0 && (
+                        <tr>
+                          <td colSpan="7" className="py-8 text-center text-xs text-gray-400">
+                            ไม่พบใบงานตามตัวกรองที่เลือก (ลองเปลี่ยนวันที่หรือเลือกช่างเพิ่มเติม)
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
